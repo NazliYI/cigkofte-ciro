@@ -587,6 +587,10 @@ let unsubscribeSalesDay = null;
 function salesDocRef(dateStr){ return doc(db, 'sales', dateStr); }
 function summaryDocRef(dateStr){ return doc(db, 'summaries', dateStr); }
 
+// Ablalarınız için Firebase'de e-posta/şifre hesapları oluşturup Firestore kurallarını
+// sıkılaştırdığınızda bunu true yapın — giriş ekranı devreye girer.
+const REQUIRE_LOGIN = false;
+
 let authInstance;
 async function initFirebase(cfg){
   try{
@@ -594,6 +598,11 @@ async function initFirebase(cfg){
     db = getFirestore(app);
     authInstance = getAuth(app);
     docRef = doc(db, 'cigkofte-shop', 'main');
+    if(!REQUIRE_LOGIN){
+      document.getElementById('loginOverlay').style.display='none';
+      loadDataAndShowApp();
+      return;
+    }
     try{ await setPersistence(authInstance, browserLocalPersistence); }catch(e){}
     onAuthStateChanged(authInstance, (user)=>{
       if(user){
@@ -733,6 +742,7 @@ function showApp(){
   document.getElementById('loadingWrap').style.display='none';
   document.getElementById('mainApp').style.display='block';
   document.getElementById('shopName').value = state.shopName;
+  document.getElementById('logoutBtn').style.display = REQUIRE_LOGIN ? 'inline-block' : 'none';
   renderOrderBuilder(); renderOrdersList(); renderDaySummary();
 }
 
