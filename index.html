@@ -207,6 +207,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 .badge.nakit{ background:#EFE6F5; color:#6B4894; }
 .badge.kart{ background:#E1EEF3; color:var(--blue); }
 .badge.online{ background:#E7ECF3; color:#3E5C82; }
+.badge.split{ background:#F3E3D0; color:#8A5A1E; }
 .order-row .items{ font-size:12.5px; color:var(--ink-soft); }
 .order-row .amt{ font-weight:700; font-family:'Anton',sans-serif; color:var(--red-dark); font-size:15.5px; white-space:nowrap; }
 .order-row .actions{ display:flex; gap:4px; flex-shrink:0; }
@@ -287,9 +288,23 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
             <div id="builderProductRows" style="margin-top:12px;"></div>
             <div class="draft-summary" id="draftSummary"></div>
             <div class="override-row" id="autoTotalHint">Otomatik: 0,00 ₺</div>
-            <div class="big-total">
+            <div class="big-total" id="normalTotalWrap">
               <span class="lbl">SİPARİŞ TOPLAMI</span>
               <input type="number" step="0.01" id="orderTotalInput" class="total-input" />
+            </div>
+            <div id="splitPayWrap" style="display:none; margin-top:10px;">
+              <div style="display:flex; gap:10px;">
+                <div style="flex:1;">
+                  <label style="font-size:12px;color:var(--ink-soft); font-weight:600;">Nakit Tutarı</label>
+                  <input type="number" step="0.01" id="splitNakitInput" style="width:100%; margin-top:4px; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:15px; font-weight:600;" />
+                </div>
+                <div style="flex:1;">
+                  <label style="font-size:12px;color:var(--ink-soft); font-weight:600;">Kart Tutarı</label>
+                  <input type="number" step="0.01" id="splitKartInput" style="width:100%; margin-top:4px; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:15px; font-weight:600;" />
+                </div>
+              </div>
+              <div style="font-size:12px; color:var(--ink-soft); margin-top:6px;" id="splitAutoHint">Ürünlerin toplamı: 0,00 ₺</div>
+              <div style="font-size:12px; color:#B23A48; margin-top:4px; display:none;" id="splitMismatchWarn"></div>
             </div>
             <div class="actions-row">
               <button class="btn btn-primary" id="saveOrderBtn">Siparişi Kaydet</button>
@@ -380,7 +395,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import { getFirestore, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCSeyDDtw6aw0rOkgmOnn9f9h25meiyfFw",
@@ -416,13 +431,14 @@ const DEFAULT_PRODUCTS = [
 const state = {
   shopName: 'Ziyafet Çiğköfte',
   products: [],
-  sales: {}, // { 'YYYY-MM-DD': { orders: [{id,channel,payment,items:[{productId,name,unit,price,qty}],total,ts}] } }
+  sales: {}, // { 'YYYY-MM-DD': { orders: [{id,channel,payment,items:[{productId,name,unit,price,qty}],total,ts}] } } — sadece görüntülenen günler için yerel önbellek
+  summaries: {}, // { 'YYYY-MM-DD': { total, trendyol, ayaktan, nakit, kart, orderCount } } — Geçmiş sekmesi için hafif özet
   entryDate: todayStr(),
   viewingDate: null,
-  draft: { channel:'ayaktan', payment:'nakit', items:{}, overrideTotal:null, editingOrderId:null, ghostItems:{} },
+  draft: { channel:'ayaktan', payment:'nakit', items:{}, overrideTotal:null, editingOrderId:null, ghostItems:{}, splitNakit:0, splitKart:0 },
 };
 
-let db, docRef, unsubscribeSnap = null;
+let db, docRef;
 
 // ---------- helpers ----------
 function todayStr(d){
@@ -452,14 +468,29 @@ function escapeHtml(s){
 function activeProducts(){ return state.products.filter(p=>p.active!==false); }
 
 // ---------- Firestore ----------
+// Mimari: meta doküman (dükkan adı + ürünler) küçük ve sabit kalır.
+// Her günün siparişleri kendi ayrı dokümanında tutulur (sales/{YYYY-MM-DD}),
+// böylece tek bir dokümanın 1MB sınırına asla çarpmayız.
+// summaries/{YYYY-MM-DD} ise Geçmiş sekmesini hızlı yüklemek için küçük özet tutar.
+let unsubscribeMeta = null;
+let unsubscribeSalesDay = null;
+
+function salesDocRef(dateStr){ return doc(db, 'sales', dateStr); }
+function summaryDocRef(dateStr){ return doc(db, 'summaries', dateStr); }
+
 async function boot(cfg){
   try{
     const app = initializeApp(cfg);
     db = getFirestore(app);
     docRef = doc(db, 'cigkofte-shop', 'main');
     const snap = await getDoc(docRef);
-    if(!snap.exists()){ await setDoc(docRef, { shopName: state.shopName, products: DEFAULT_PRODUCTS, sales: {} }); }
-    listenRemote();
+    if(!snap.exists()){
+      await setDoc(docRef, { shopName: state.shopName, products: DEFAULT_PRODUCTS });
+    } else {
+      await migrateOldSalesIfNeeded(snap.data());
+    }
+    listenMeta();
+    listenSalesDay(state.entryDate);
     showApp();
   }catch(e){
     console.error(e);
@@ -467,27 +498,82 @@ async function boot(cfg){
     document.getElementById('loadingWrap').style.display='block';
   }
 }
-function listenRemote(){
-  if(unsubscribeSnap) unsubscribeSnap();
-  unsubscribeSnap = onSnapshot(docRef, (snap)=>{
+// Eski tek-doküman yapısında (shopName/products/sales hepsi bir arada) test sırasında
+// birikmiş veri varsa, otomatik olarak yeni gün-bazlı yapıya taşır.
+async function migrateOldSalesIfNeeded(metaData){
+  const oldSales = metaData.sales;
+  if(!oldSales || Object.keys(oldSales).length===0) return;
+  for(const [dateStr, dayObj] of Object.entries(oldSales)){
+    const orders = (dayObj && dayObj.orders) || [];
+    if(orders.length===0) continue;
+    await setDoc(salesDocRef(dateStr), { orders });
+    const agg = computeAggFromOrders(orders);
+    await setDoc(summaryDocRef(dateStr), { total:agg.total, trendyol:agg.trendyol, ayaktan:agg.ayaktan, nakit:agg.nakit, kart:agg.kart, orderCount: orders.length, updatedAt: Date.now() });
+  }
+  await updateDoc(docRef, { sales: {} });
+}
+function listenMeta(){
+  if(unsubscribeMeta) unsubscribeMeta();
+  unsubscribeMeta = onSnapshot(docRef, (snap)=>{
     if(!snap.exists()) return;
     const d = snap.data();
     state.shopName = d.shopName || 'Ziyafet Çiğköfte';
     state.products = d.products || [];
-    state.sales = d.sales || {};
-    onRemoteUpdate();
+    onMetaUpdate();
   }, (err)=>{ console.error(err); toast('Bağlantı sorunu oluştu'); });
 }
+function listenSalesDay(dateStr){
+  if(unsubscribeSalesDay) unsubscribeSalesDay();
+  unsubscribeSalesDay = onSnapshot(salesDocRef(dateStr), (snap)=>{
+    state.sales[dateStr] = snap.exists() ? snap.data() : { orders: [] };
+    if(state.entryDate===dateStr){ onEntryDaySalesUpdate(); }
+  }, (err)=>{ console.error(err); toast('Bağlantı sorunu oluştu'); });
+}
+async function persistDay(dateStr, orders){
+  try{
+    await setDoc(salesDocRef(dateStr), { orders });
+    const agg = computeAggFromOrders(orders);
+    await setDoc(summaryDocRef(dateStr), { total:agg.total, trendyol:agg.trendyol, ayaktan:agg.ayaktan, nakit:agg.nakit, kart:agg.kart, orderCount: orders.length, updatedAt: Date.now() });
+    state.summaries[dateStr] = { total:agg.total, trendyol:agg.trendyol, ayaktan:agg.ayaktan, nakit:agg.nakit, kart:agg.kart, orderCount: orders.length };
+  }catch(e){ console.error(e); toast('Kayıt sırasında bir sorun oldu'); }
+}
 async function saveProducts(){ try{ await updateDoc(docRef, { products: state.products }); }catch(e){ toast('Ürünler kaydedilemedi'); } }
-async function saveSales(){ try{ await updateDoc(docRef, { sales: state.sales }); }catch(e){ toast('Kayıt sırasında bir sorun oldu'); } }
 async function saveShopName(){ try{ await updateDoc(docRef, { shopName: state.shopName }); }catch(e){} }
+async function loadAllSummaries(){
+  try{
+    const snap = await getDocs(collection(db, 'summaries'));
+    const sums = {};
+    snap.forEach(d=>{ sums[d.id] = d.data(); });
+    state.summaries = sums;
+  }catch(e){ console.error(e); toast('Geçmiş yüklenemedi'); }
+}
+async function fetchSalesDay(dateStr){
+  if(state.sales[dateStr]) return state.sales[dateStr];
+  try{
+    const snap = await getDoc(salesDocRef(dateStr));
+    state.sales[dateStr] = snap.exists() ? snap.data() : { orders: [] };
+  }catch(e){ console.error(e); state.sales[dateStr] = { orders: [] }; }
+  return state.sales[dateStr];
+}
+async function resetAllHistory(){
+  const salesSnap = await getDocs(collection(db,'sales'));
+  const summarySnap = await getDocs(collection(db,'summaries'));
+  const jobs = [];
+  salesSnap.forEach(d=> jobs.push(deleteDoc(d.ref)));
+  summarySnap.forEach(d=> jobs.push(deleteDoc(d.ref)));
+  await Promise.all(jobs);
+  state.sales = {}; state.summaries = {};
+}
 
-function onRemoteUpdate(){
+function onMetaUpdate(){
   document.getElementById('shopName').value = state.shopName;
   const activeTab = document.querySelector('nav.tabs button.active').dataset.tab;
   if(activeTab==='entry'){ renderOrderBuilder(); renderOrdersList(); renderDaySummary(); }
-  if(activeTab==='history'){ renderHistory(); }
   if(activeTab==='products'){ renderProducts(); }
+}
+function onEntryDaySalesUpdate(){
+  const activeTab = document.querySelector('nav.tabs button.active').dataset.tab;
+  if(activeTab==='entry'){ renderOrderBuilder(); renderOrdersList(); renderDaySummary(); }
 }
 function showApp(){
   document.getElementById('loadingWrap').style.display='none';
@@ -514,6 +600,7 @@ entryDateInput.addEventListener('change', ()=>{
   state.entryDate = entryDateInput.value || todayStr();
   document.getElementById('todayBadge').style.display = (state.entryDate===todayStr()) ? 'inline-block' : 'none';
   resetDraft(true);
+  listenSalesDay(state.entryDate);
   renderOrderBuilder(); renderOrdersList(); renderDaySummary();
 });
 document.getElementById('todayBadge').style.display = 'inline-block';
@@ -521,7 +608,7 @@ document.getElementById('todayBadge').style.display = 'inline-block';
 // ---------- Order draft / builder ----------
 function resetDraft(keepChannelPayment){
   const keep = keepChannelPayment ? {channel: state.draft.channel, payment: state.draft.payment} : {channel:'ayaktan', payment:'nakit'};
-  state.draft = { channel: keep.channel, payment: keep.payment, items:{}, overrideTotal:null, editingOrderId:null, ghostItems:{} };
+  state.draft = { channel: keep.channel, payment: keep.payment, items:{}, overrideTotal:null, editingOrderId:null, ghostItems:{}, splitNakit:0, splitKart:0 };
 }
 function draftAutoTotal(){
   let sum=0;
@@ -534,8 +621,8 @@ function draftAutoTotal(){
   return sum;
 }
 const PAYMENT_OPTIONS = {
-  ayaktan: [ {val:'nakit', label:'Nakit'}, {val:'kart', label:'Kart'} ],
-  trendyol: [ {val:'online', label:'Online'}, {val:'nakit', label:'Kapıda Nakit'}, {val:'kart', label:'Kapıda Kart'} ],
+  ayaktan: [ {val:'nakit', label:'Nakit'}, {val:'kart', label:'Kart'}, {val:'split', label:'Bölünmüş'} ],
+  trendyol: [ {val:'online', label:'Online'}, {val:'nakit', label:'Kapıda Nakit'}, {val:'kart', label:'Kapıda Kart'}, {val:'split', label:'Kapıda Bölünmüş'} ],
 };
 document.querySelectorAll('#channelSeg button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -546,6 +633,26 @@ document.querySelectorAll('#channelSeg button').forEach(btn=>{
 document.getElementById('orderTotalInput').addEventListener('input', (e)=>{
   state.draft.overrideTotal = e.target.value===''? null : (parseFloat(e.target.value.replace(',','.'))||0);
 });
+document.getElementById('splitNakitInput').addEventListener('input', (e)=>{
+  state.draft.splitNakit = parseFloat((e.target.value||'0').replace(',','.'))||0;
+  updateSplitHint();
+});
+document.getElementById('splitKartInput').addEventListener('input', (e)=>{
+  state.draft.splitKart = parseFloat((e.target.value||'0').replace(',','.'))||0;
+  updateSplitHint();
+});
+function updateSplitHint(){
+  const auto = draftAutoTotal();
+  const sum = (state.draft.splitNakit||0) + (state.draft.splitKart||0);
+  document.getElementById('splitAutoHint').textContent = 'Ürünlerin toplamı: ' + formatTL(auto);
+  const warn = document.getElementById('splitMismatchWarn');
+  if(auto>0 && Math.abs(sum-auto)>0.5){
+    warn.style.display='block';
+    warn.textContent = `Girdiğiniz toplam (${formatTL(sum)}) ürünlerin toplamından (${formatTL(auto)}) farklı`;
+  } else {
+    warn.style.display='none';
+  }
+}
 
 function renderOrderBuilder(){
   document.querySelectorAll('#channelSeg button').forEach(b=> b.classList.toggle('active', b.dataset.val===state.draft.channel));
@@ -595,6 +702,14 @@ function renderOrderBuilder(){
     });
   }
   updateBuilderTotal();
+  const isSplit = state.draft.payment === 'split';
+  document.getElementById('normalTotalWrap').style.display = isSplit ? 'none' : 'flex';
+  document.getElementById('splitPayWrap').style.display = isSplit ? 'block' : 'none';
+  if(isSplit){
+    document.getElementById('splitNakitInput').value = state.draft.splitNakit || '';
+    document.getElementById('splitKartInput').value = state.draft.splitKart || '';
+    updateSplitHint();
+  }
   const channelLabel = state.draft.channel==='trendyol' ? 'Trendyol' : 'Ayaktan';
   const chosenOpt = opts.find(o=>o.val===state.draft.payment);
   document.getElementById('draftSummary').textContent = `Bu sipariş: ${channelLabel} · ${chosenOpt ? chosenOpt.label : ''} olarak kaydedilecek`;
@@ -615,6 +730,7 @@ function updateBuilderTotal(){
   document.getElementById('autoTotalHint').textContent = 'Otomatik: ' + formatTL(auto);
   const overrideInp = document.getElementById('orderTotalInput');
   if(state.draft.overrideTotal===null){ overrideInp.value = auto ? auto.toFixed(2) : ''; }
+  if(state.draft.payment==='split'){ updateSplitHint(); }
 }
 
 document.getElementById('saveOrderBtn').addEventListener('click', async ()=>{
@@ -628,17 +744,27 @@ document.getElementById('saveOrderBtn').addEventListener('click', async ()=>{
     return { productId:id, name:p.name, unit:p.unit, price:p.price, qty };
   });
   const auto = items.reduce((s,it)=> s + it.qty*it.price, 0);
-  const total = state.draft.overrideTotal!==null ? state.draft.overrideTotal : auto;
+  let total, splitNakit=null, splitKart=null;
+  if(state.draft.payment==='split'){
+    splitNakit = state.draft.splitNakit||0;
+    splitKart = state.draft.splitKart||0;
+    if(splitNakit<=0 && splitKart<=0){ toast('Nakit ve kart tutarlarını girin'); return; }
+    total = splitNakit + splitKart;
+  } else {
+    total = state.draft.overrideTotal!==null ? state.draft.overrideTotal : auto;
+  }
 
   if(!state.sales[state.entryDate]) state.sales[state.entryDate] = { orders: [] };
   const dayObj = state.sales[state.entryDate];
+  const orderObj = { id: state.draft.editingOrderId || uid(), channel: state.draft.channel, payment: state.draft.payment, items, total, ts: Date.now() };
+  if(state.draft.payment==='split'){ orderObj.splitNakit = splitNakit; orderObj.splitKart = splitKart; }
   if(state.draft.editingOrderId){
     const idx = dayObj.orders.findIndex(o=>o.id===state.draft.editingOrderId);
-    if(idx>-1) dayObj.orders[idx] = { id: state.draft.editingOrderId, channel: state.draft.channel, payment: state.draft.payment, items, total, ts: Date.now() };
+    if(idx>-1) dayObj.orders[idx] = orderObj;
   } else {
-    dayObj.orders.push({ id: uid(), channel: state.draft.channel, payment: state.draft.payment, items, total, ts: Date.now() });
+    dayObj.orders.push(orderObj);
   }
-  await saveSales();
+  await persistDay(state.entryDate, dayObj.orders);
   toast(state.draft.editingOrderId? 'Sipariş güncellendi ✓' : 'Sipariş eklendi ✓');
   resetDraft(true);
   renderOrderBuilder(); renderOrdersList(); renderDaySummary();
@@ -647,6 +773,7 @@ document.getElementById('cancelEditBtn').addEventListener('click', ()=>{ resetDr
 
 // ---------- Orders list ----------
 function paymentLabel(o){
+  if(o.payment==='split') return 'Bölünmüş';
   if(o.payment==='online') return 'Online';
   if(o.channel==='trendyol') return o.payment==='nakit' ? 'Kapıda Nakit' : 'Kapıda Kart';
   return o.payment==='nakit' ? 'Nakit' : 'Kart';
@@ -658,6 +785,7 @@ function renderOrdersListInto(dateStr, elId, readOnly){
   if(orders.length===0){ wrap.innerHTML = '<div class="empty-note">Sipariş yok.</div>'; return; }
   wrap.innerHTML = orders.map(o=>{
     const itemsTxt = o.items.map(it=> `${formatQty(it.qty)}× ${escapeHtml(it.name)}`).join(', ');
+    const splitTxt = o.payment==='split' ? `<div class="items" style="margin-top:2px;">Nakit ${formatTL(o.splitNakit||0)} · Kart ${formatTL(o.splitKart||0)}</div>` : '';
     return `<div class="order-row" data-id="${o.id}">
       <div>
         <div class="meta">
@@ -665,6 +793,7 @@ function renderOrdersListInto(dateStr, elId, readOnly){
           ${o.payment? `<span class="badge ${o.payment}">${paymentLabel(o)}</span>`:''}
         </div>
         <div class="items">${itemsTxt}</div>
+        ${splitTxt}
       </div>
       <div class="amt">${formatTL(o.total)}</div>
       ${readOnly? '' : `<div class="actions"><button class="edit-order" title="Düzenle">✎</button><button class="del-order" title="Sil">✕</button></div>`}
@@ -687,16 +816,16 @@ function editOrder(orderId){
     items[it.productId] = it.qty;
     if(!prodMap[it.productId]) ghosts[it.productId] = {name:it.name, unit:it.unit, price:it.price};
   });
-  state.draft = { channel:o.channel, payment:o.payment||'nakit', items, overrideTotal:o.total, editingOrderId:o.id, ghostItems:ghosts };
+  state.draft = { channel:o.channel, payment:o.payment||'nakit', items, overrideTotal:o.total, editingOrderId:o.id, ghostItems:ghosts, splitNakit:o.splitNakit||0, splitKart:o.splitKart||0 };
   renderOrderBuilder();
-  document.getElementById('orderTotalInput').value = o.total.toFixed(2);
+  if(o.payment!=='split'){ document.getElementById('orderTotalInput').value = o.total.toFixed(2); }
   toast('Sipariş düzenleniyor, değişiklik yapıp güncelleyin');
 }
 async function deleteOrder(orderId){
   if(!confirm('Bu siparişi silmek istediğinize emin misiniz?')) return;
   const dayObj = state.sales[state.entryDate];
   dayObj.orders = dayObj.orders.filter(o=>o.id!==orderId);
-  await saveSales();
+  await persistDay(state.entryDate, dayObj.orders);
   renderOrdersList(); renderDaySummary();
   toast('Sipariş silindi');
 }
@@ -714,6 +843,11 @@ function computePaymentBreakdown(dateStr){
     if(o.payment==='nakit'){ b.nakit[o.channel].count++; b.nakit[o.channel].total+=o.total; }
     else if(o.payment==='kart'){ b.kart[o.channel].count++; b.kart[o.channel].total+=o.total; }
     else if(o.payment==='online'){ b.online.count++; b.online.total+=o.total; }
+    else if(o.payment==='split'){
+      const sN = o.splitNakit||0, sK = o.splitKart||0;
+      if(sN>0){ b.nakit[o.channel].count++; b.nakit[o.channel].total+=sN; }
+      if(sK>0){ b.kart[o.channel].count++; b.kart[o.channel].total+=sK; }
+    }
   });
   return b;
 }
@@ -743,15 +877,15 @@ function buildPaymentTableHTML(dateStr){
     </table>
   `;
 }
-function computeDayAggregates(dateStr){
-  const dayObj = state.sales[dateStr];
-  const orders = dayObj? dayObj.orders : [];
+function computeAggFromOrders(orders){
   let total=0, trendyol=0, ayaktan=0, nakit=0, kart=0;
   const breakdown = {};
   orders.forEach(o=>{
     total += o.total;
     if(o.channel==='trendyol') trendyol += o.total; else ayaktan += o.total;
-    if(o.payment==='nakit') nakit+=o.total; else if(o.payment==='kart') kart+=o.total;
+    if(o.payment==='nakit') nakit+=o.total;
+    else if(o.payment==='kart') kart+=o.total;
+    else if(o.payment==='split'){ nakit += (o.splitNakit||0); kart += (o.splitKart||0); }
     const autoSum = o.items.reduce((s,it)=> s+it.qty*it.price, 0);
     const factor = autoSum>0 ? (o.total/autoSum) : 1;
     o.items.forEach(it=>{
@@ -762,6 +896,10 @@ function computeDayAggregates(dateStr){
     });
   });
   return {total, trendyol, ayaktan, nakit, kart, breakdown, orderCount: orders.length};
+}
+function computeDayAggregates(dateStr){
+  const dayObj = state.sales[dateStr];
+  return computeAggFromOrders(dayObj ? dayObj.orders : []);
 }
 function updateStickyMobile(total){
   let bar = document.querySelector('.sticky-total-mobile');
@@ -814,11 +952,14 @@ function renderBars(containerId, agg){
 }
 
 // ---------- History tab ----------
-function renderHistory(){
+async function renderHistory(){
   document.getElementById('historyDetailWrap').style.display='none';
   document.getElementById('historyListWrap').style.display='block';
+  document.getElementById('dayList').innerHTML = '<div class="empty-note">Yükleniyor…</div>';
 
-  const allDates = Object.keys(state.sales).filter(d=> (state.sales[d].orders||[]).length>0).sort().reverse();
+  await loadAllSummaries();
+
+  const allDates = Object.keys(state.summaries).filter(d=> (state.summaries[d].orderCount||0) > 0).sort().reverse();
   const today = new Date();
   const weekAgo = new Date(); weekAgo.setDate(today.getDate()-6);
   const monthStr = todayStr().slice(0,7);
@@ -827,7 +968,7 @@ function renderHistory(){
   let weekTotal=0, monthTotal=0, sum30=0, count30=0;
   allDates.forEach(d=>{
     const dt = new Date(d+'T00:00:00');
-    const total = computeDayAggregates(d).total;
+    const total = state.summaries[d].total || 0;
     if(dt >= new Date(weekAgo.toDateString())) weekTotal += total;
     if(d.startsWith(monthStr)) monthTotal += total;
     if(dt >= new Date(thirtyAgo.toDateString())){ sum30+=total; count30++; }
@@ -838,7 +979,7 @@ function renderHistory(){
 
   const trendBox = document.getElementById('trendBox');
   const days = [];
-  for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(today.getDate()-i); const ds=todayStr(d); days.push({ds, total: computeDayAggregates(ds).total}); }
+  for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(today.getDate()-i); const ds=todayStr(d); days.push({ds, total: (state.summaries[ds]||{}).total || 0}); }
   const maxV = Math.max(1, ...days.map(x=>x.total));
   trendBox.innerHTML = days.map(x=>{
     const h = Math.max(3, Math.round((x.total/maxV)*80));
@@ -851,7 +992,7 @@ function renderHistory(){
   list.innerHTML = allDates.map(d=>{
     const [y,m,dd] = d.split('-').map(Number);
     const wk = TR_DAYS[new Date(y,m-1,dd).getDay()];
-    const total = computeDayAggregates(d).total;
+    const total = state.summaries[d].total || 0;
     return `<div class="day-row" data-date="${d}">
       <div class="dl">${formatDateTR(d,false)} <span class="wk">· ${wk}</span></div>
       <div class="dv">${formatTL(total)}</div>
@@ -859,10 +1000,12 @@ function renderHistory(){
   }).join('');
   list.querySelectorAll('.day-row').forEach(row=> row.addEventListener('click', ()=> showDayDetail(row.dataset.date)));
 }
-function showDayDetail(dateStr){
+async function showDayDetail(dateStr){
   state.viewingDate = dateStr;
   document.getElementById('historyListWrap').style.display='none';
   document.getElementById('historyDetailWrap').style.display='block';
+  document.getElementById('detailOrdersList').innerHTML = '<div class="empty-note">Yükleniyor…</div>';
+  await fetchSalesDay(dateStr);
   const agg = computeDayAggregates(dateStr);
   document.getElementById('detailChips').innerHTML = `
     <div class="chip">TOPLAM<b>${formatTL(agg.total)}</b></div>
@@ -886,6 +1029,7 @@ document.getElementById('editDayBtn').addEventListener('click', ()=>{
   document.getElementById('todayBadge').style.display = (state.entryDate===todayStr()) ? 'inline-block' : 'none';
   switchTab('entry');
   resetDraft(true);
+  listenSalesDay(state.entryDate);
   renderOrderBuilder(); renderOrdersList(); renderDaySummary();
 });
 
@@ -948,8 +1092,7 @@ document.getElementById('addProdBtn').addEventListener('click', async ()=>{
 document.getElementById('resetHistoryBtn').addEventListener('click', async ()=>{
   if(!confirm('TÜM satış geçmişi silinecek. Bu işlem geri alınamaz. Emin misiniz?')) return;
   if(!confirm('Son kez soruyoruz — gerçekten tüm geçmiş silinsin mi?')) return;
-  state.sales = {};
-  await saveSales();
+  await resetAllHistory();
   renderHistory(); renderOrdersList(); renderDaySummary();
   toast('Geçmiş silindi');
 });
