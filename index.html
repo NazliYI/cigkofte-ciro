@@ -467,8 +467,6 @@ const DEFAULT_PRODUCTS = [
   {id:'su', name:'Su 0.5lt', unit:'adet', price:15, priceTrendyol:15, active:true},
 ];
 
-// Trendyol menüsünden okunan güncel fiyatlarla mevcut ürünleri güncelliyoruz
-// (sadece Trendyol fiyatı; ayaktan/mevcut fiyata dokunmuyoruz).
 const PRODUCT_SEED_VERSION = 2;
 const SEED_UPDATES_V2 = [
   { id:'durum', priceTrendyol:110 },
@@ -482,11 +480,8 @@ const SEED_UPDATES_V2 = [
   { id:'c400', priceTrendyol:310 },
   { id:'c500', priceTrendyol:400 },
   { id:'c1000', priceTrendyol:630 },
-  { id:'kutuicecek', active:false }, // artık marka bazlı kutu içecekler kullanılıyor
+  { id:'kutuicecek', active:false }, 
 ];
-// Trendyol menüsünde olup henüz listemizde olmayan ürünler.
-// Ayaktan fiyatı bilinmeyenler için Trendyol fiyatı geçici olarak aynen kopyalandı —
-// Ürünler sekmesinden gerçek dükkan fiyatını girmeniz gerekiyor (aşağıdaki sohbette listeledim).
 const NEW_PRODUCTS_V2 = [
   {id:'kola', name:'Kola (Kutu)', unit:'adet', price:60, priceTrendyol:75, active:true},
   {id:'fanta', name:'Fanta (Kutu)', unit:'adet', price:60, priceTrendyol:75, active:true},
@@ -540,11 +535,11 @@ const state = {
   shopName: 'Ziyafet Çiğköfte',
   products: [],
   productSeedVersion: 0,
-  sales: {}, // { 'YYYY-MM-DD': { orders: [{id,channel,payment,items:[{productId,name,unit,price,qty}],total,ts}] } } — sadece görüntülenen günler için yerel önbellek
-  summaries: {}, // { 'YYYY-MM-DD': { total, trendyol, ayaktan, nakit, kart, orderCount } } — Geçmiş sekmesi için hafif özet
+  sales: {},
+  summaries: {},
   entryDate: todayStr(),
   viewingDate: null,
-  draft: { channel:'ayaktan', activeTag:'nakit', itemsByTag:{nakit:{},kart:{},online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{}, tip:{amount:0, tag:'nakit'}, discount:0 },
+  draft: { channel:'ayaktan', activeTag:'nakit', itemsByTag:{nakit:{},kart:{},online:{}}, overrideItemTotals:{nakit:{},kart:{},online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{}, tip:{amount:0, tag:'nakit'}, discount:0 },
 };
 
 let db, docRef;
@@ -577,18 +572,12 @@ function escapeHtml(s){
 function activeProducts(){ return state.products.filter(p=>p.active!==false); }
 
 // ---------- Firestore ----------
-// Mimari: meta doküman (dükkan adı + ürünler) küçük ve sabit kalır.
-// Her günün siparişleri kendi ayrı dokümanında tutulur (sales/{YYYY-MM-DD}),
-// böylece tek bir dokümanın 1MB sınırına asla çarpmayız.
-// summaries/{YYYY-MM-DD} ise Geçmiş sekmesini hızlı yüklemek için küçük özet tutar.
 let unsubscribeMeta = null;
 let unsubscribeSalesDay = null;
 
 function salesDocRef(dateStr){ return doc(db, 'sales', dateStr); }
 function summaryDocRef(dateStr){ return doc(db, 'summaries', dateStr); }
 
-// Ablalarınız için Firebase'de e-posta/şifre hesapları oluşturup Firestore kurallarını
-// sıkılaştırdığınızda bunu true yapın — giriş ekranı devreye girer.
 const REQUIRE_LOGIN = false;
 
 let authInstance;
@@ -660,8 +649,7 @@ document.getElementById('loginBtn').addEventListener('click', async ()=>{
 document.getElementById('logoutBtn').addEventListener('click', async ()=>{
   if(confirm('Çıkış yapmak istediğinize emin misiniz?')){ await signOut(authInstance); }
 });
-// Eski tek-doküman yapısında (shopName/products/sales hepsi bir arada) test sırasında
-// birikmiş veri varsa, otomatik olarak yeni gün-bazlı yapıya taşır.
+
 async function migrateOldSalesIfNeeded(metaData){
   const oldSales = metaData.sales;
   if(!oldSales || Object.keys(oldSales).length===0) return;
@@ -772,7 +760,7 @@ document.getElementById('todayBadge').style.display = 'inline-block';
 // ---------- Order draft / builder ----------
 function resetDraft(keepChannelTag){
   const keep = keepChannelTag ? {channel: state.draft.channel, activeTag: state.draft.activeTag} : {channel:'ayaktan', activeTag:'nakit'};
-  state.draft = { channel: keep.channel, activeTag: keep.activeTag, itemsByTag: {nakit:{}, kart:{}, online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{}, tip:{amount:0, tag:keep.activeTag}, discount:0 };
+  state.draft = { channel: keep.channel, activeTag: keep.activeTag, itemsByTag: {nakit:{}, kart:{}, online:{}}, overrideItemTotals: {nakit:{}, kart:{}, online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{}, tip:{amount:0, tag:keep.activeTag}, discount:0 };
 }
 function effectivePrice(p){
   if(!p) return 0;
@@ -784,10 +772,17 @@ function draftAutoTotal(){
   const prodMap = Object.fromEntries(state.products.map(p=>[p.id,p]));
   ['nakit','kart','online'].forEach(tag=>{
     const bucket = state.draft.itemsByTag[tag] || {};
+    const overrideBucket = state.draft.overrideItemTotals[tag] || {};
     Object.keys(bucket).forEach(pid=>{
       const qty = bucket[pid]; if(!qty) return;
       const p = prodMap[pid] || state.draft.ghostItems[pid];
-      if(p) sum += qty * effectivePrice(p);
+      if(p) {
+        if(overrideBucket[pid] !== undefined && overrideBucket[pid] !== '') {
+          sum += Number(overrideBucket[pid]);
+        } else {
+          sum += qty * effectivePrice(p);
+        }
+      }
     });
   });
   sum += Number(state.draft.tip.amount)||0;
@@ -841,14 +836,18 @@ function renderOrderBuilder(){
   const ghostIds = Object.keys(state.draft.ghostItems).filter(id=> !actives.find(p=>p.id===id));
   wrap.innerHTML = '';
   const activeBucket = state.draft.itemsByTag[state.draft.activeTag] || {};
+  const overrideBucket = state.draft.overrideItemTotals[state.draft.activeTag] || {};
+  
   if(actives.length===0 && ghostIds.length===0){
     wrap.innerHTML = '<div class="empty-note">Aktif ürün yok. <a data-goto="products">Ürünler</a> sekmesinden ekleyin.</div>';
   } else {
     const rows = [...actives, ...ghostIds.map(id=>({id, ...state.draft.ghostItems[id], ghost:true}))];
     rows.forEach(p=>{
       const val = activeBucket[p.id] || '';
+      const customTutar = overrideBucket[p.id] !== undefined ? overrideBucket[p.id] : '';
       const row = document.createElement('div');
       row.className='product-row';
+      row.style.flexWrap = 'wrap'; 
       const priceNow = effectivePrice(p);
       const showsDiff = !p.ghost && state.draft.channel==='trendyol' && p.priceTrendyol!=null && Number(p.priceTrendyol)!==Number(p.price);
       const otherHints = opts.filter(o=>o.val!==state.draft.activeTag).map(o=>{
@@ -856,19 +855,25 @@ function renderOrderBuilder(){
         return q>0 ? `${o.label}: ${formatQty(q)}` : null;
       }).filter(Boolean);
       row.innerHTML = `
-        <div class="pname">
-          <div class="n">${escapeHtml(p.name)}${p.ghost?' <span style="color:var(--ink-soft);font-weight:400;">(kaldırılmış)</span>':''}</div>
-          <div class="u">${escapeHtml(p.unit)} · ${formatTL(priceNow)}${showsDiff?' <span style="color:var(--ink-soft);">(Trendyol fiyatı)</span>':''}${otherHints.length? ` <span style="color:var(--ink-soft);">· eklendi: ${otherHints.join(', ')}</span>`:''}</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+          <div class="pname">
+            <div class="n">${escapeHtml(p.name)}${p.ghost?' <span style="color:var(--ink-soft);font-weight:400;">(kaldırılmış)</span>':''}</div>
+            <div class="u">${escapeHtml(p.unit)} · ${formatTL(priceNow)}${showsDiff?' <span style="color:var(--ink-soft);">(Trendyol fiyatı)</span>':''}${otherHints.length? ` <span style="color:var(--ink-soft);">· eklendi: ${otherHints.join(', ')}</span>`:''}</div>
+          </div>
+          <div class="qty-wrap">
+            <button type="button" class="bstep" data-id="${p.id}" data-dir="-1">−</button>
+            <input type="number" inputmode="decimal" step="any" min="0" id="bqty-${p.id}" value="${val}" placeholder="0" />
+            <button type="button" class="bstep" data-id="${p.id}" data-dir="1">+</button>
+          </div>
         </div>
-        <div class="qty-wrap">
-          <button type="button" class="bstep" data-id="${p.id}" data-dir="-1">−</button>
-          <input type="number" inputmode="decimal" step="any" min="0" id="bqty-${p.id}" value="${val}" placeholder="0" />
-          <button type="button" class="bstep" data-id="${p.id}" data-dir="1">+</button>
+        <div style="width:100%; margin-top:8px; display:flex; align-items:center; justify-content:flex-end; gap:8px; font-size:12px; color:var(--ink-soft);">
+          <label for="btotal-${p.id}">Özel Tutar (₺):</label>
+          <input type="number" inputmode="decimal" step="0.01" min="0" id="btotal-${p.id}" class="custom-tutar-input" value="${customTutar}" placeholder="Oto" style="width:80px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; text-align:right;" />
         </div>
       `;
       wrap.appendChild(row);
     });
-    wrap.querySelectorAll('input').forEach(inp=> inp.addEventListener('input', onBuilderQtyChange));
+    wrap.querySelectorAll('input[id^="bqty-"]').forEach(inp=> inp.addEventListener('input', onBuilderQtyChange));
     wrap.querySelectorAll('.bstep').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const id=btn.dataset.id, dir=Number(btn.dataset.dir);
@@ -878,6 +883,21 @@ function renderOrderBuilder(){
         inp.value = v;
         onBuilderQtyChange();
       });
+    });
+    
+    wrap.querySelectorAll('.custom-tutar-input').forEach(inp => {
+       inp.addEventListener('input', (e) => {
+          const id = e.target.id.replace('btotal-','');
+          const v = e.target.value;
+          const overBucket = state.draft.overrideItemTotals[state.draft.activeTag] || (state.draft.overrideItemTotals[state.draft.activeTag]={});
+          if(v === '') {
+             delete overBucket[id];
+          } else {
+             overBucket[id] = parseFloat(v.replace(',','.')) || 0;
+          }
+          updateBuilderTotal();
+          renderDraftLines();
+       });
     });
   }
   updateBuilderTotal();
@@ -891,10 +911,18 @@ function renderOrderBuilder(){
 function onBuilderQtyChange(){
   const wrap = document.getElementById('builderProductRows');
   const bucket = state.draft.itemsByTag[state.draft.activeTag] || (state.draft.itemsByTag[state.draft.activeTag]={});
+  const overBucket = state.draft.overrideItemTotals[state.draft.activeTag] || (state.draft.overrideItemTotals[state.draft.activeTag]={});
   wrap.querySelectorAll('input[id^="bqty-"]').forEach(inp=>{
     const id = inp.id.replace('bqty-','');
     const v = parseFloat((inp.value||'0').replace(',','.'))||0;
-    if(v>0) bucket[id]=v; else delete bucket[id];
+    if(v>0){ 
+      bucket[id]=v; 
+    } else { 
+      delete bucket[id]; 
+      delete overBucket[id];
+      const tInp = document.getElementById('btotal-'+id);
+      if(tInp) tInp.value = '';
+    }
   });
   updateBuilderTotal();
   renderDraftLines();
@@ -922,10 +950,14 @@ function renderDraftLines(){
     if(entries.length===0) return;
     any=true;
     let groupTotal=0;
+    const overBucket = state.draft.overrideItemTotals[tagOpt.val] || {};
     const lines = entries.map(([pid,qty])=>{
       const p = prodMap[pid] || state.draft.ghostItems[pid];
       if(!p) return '';
-      const amt = qty*effectivePrice(p);
+      let amt = qty*effectivePrice(p);
+      if (overBucket[pid] !== undefined && overBucket[pid] !== '') {
+         amt = Number(overBucket[pid]);
+      }
       groupTotal += amt;
       return `<div class="draft-line" data-pid="${pid}" data-tag="${tagOpt.val}">
         <span class="dl-name">${formatQty(qty)}× ${escapeHtml(p.name)}</span>
@@ -962,11 +994,16 @@ document.getElementById('saveOrderBtn').addEventListener('click', async ()=>{
   const items = [];
   ['nakit','kart','online'].forEach(tag=>{
     const bucket = state.draft.itemsByTag[tag] || {};
+    const overBucket = state.draft.overrideItemTotals[tag] || {};
     Object.entries(bucket).forEach(([pid,qty])=>{
       if(!qty) return;
       const p = prodMap[pid] || state.draft.ghostItems[pid];
       if(!p) return;
-      items.push({ productId:pid, name:p.name, unit:p.unit, price:effectivePrice(p), qty, payment:tag });
+      let finalPrice = effectivePrice(p);
+      if (overBucket[pid] !== undefined && overBucket[pid] !== '') {
+         finalPrice = Number(overBucket[pid]) / qty; 
+      }
+      items.push({ productId:pid, name:p.name, unit:p.unit, price:finalPrice, qty, payment:tag });
     });
   });
   if(state.draft.tip.amount>0){
@@ -1040,6 +1077,7 @@ function editOrder(orderId){
   if(!o) return;
   const prodMap = Object.fromEntries(state.products.map(p=>[p.id,p]));
   const itemsByTag = {nakit:{}, kart:{}, online:{}};
+  const overrideItemTotals = {nakit:{}, kart:{}, online:{}};
   const ghosts = {};
   let tip = {amount:0, tag:'nakit'};
   const realItems = o.items.filter(it=>{
@@ -1050,10 +1088,19 @@ function editOrder(orderId){
     const tag = it.payment || 'nakit';
     if(!itemsByTag[tag]) itemsByTag[tag] = {};
     itemsByTag[tag][it.productId] = (itemsByTag[tag][it.productId]||0) + it.qty;
+    
+    const p = prodMap[it.productId];
+    const standardPrice = p ? (o.channel==='trendyol' && p.priceTrendyol!=null && p.priceTrendyol!=='' ? Number(p.priceTrendyol) : Number(p.price)||0) : it.price;
+    
+    if (Math.abs(it.price - standardPrice) > 0.001) {
+        if(!overrideItemTotals[tag]) overrideItemTotals[tag] = {};
+        overrideItemTotals[tag][it.productId] = (overrideItemTotals[tag][it.productId] || 0) + (it.qty * it.price);
+    }
+    
     if(!prodMap[it.productId]) ghosts[it.productId] = {name:it.name, unit:it.unit, price:it.price};
   });
   const firstTag = realItems[0] ? (realItems[0].payment || 'nakit') : 'nakit';
-  state.draft = { channel:o.channel, activeTag:firstTag, itemsByTag, overrideTotal:o.total, editingOrderId:o.id, ghostItems:ghosts, tip, discount:0 };
+  state.draft = { channel:o.channel, activeTag:firstTag, itemsByTag, overrideItemTotals, overrideTotal:o.total, editingOrderId:o.id, ghostItems:ghosts, tip, discount:0 };
   renderOrderBuilder();
   document.getElementById('orderTotalInput').value = o.total.toFixed(2);
   toast('Sipariş düzenleniyor, değişiklik yapıp güncelleyin');
