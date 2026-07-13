@@ -214,14 +214,16 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 .order-row .actions button{ border:none; background:var(--surface-alt); width:26px; height:26px; border-radius:7px; font-size:12px; }
 
 .prod-list{ display:flex; flex-direction:column; gap:10px; margin-bottom: 20px; }
-.prod-item{ display:grid; grid-template-columns: 1.3fr 0.6fr 0.8fr auto; gap:8px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding: 10px 12px; }
+.prod-item{ display:flex; flex-direction:column; gap:8px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding: 12px; }
 .prod-item input{ border:1px solid var(--line); border-radius:8px; padding:8px 9px; font-size:13px; width:100%; min-width:0; }
 .prod-item .del{ background:none; border:none; color:#B23A48; font-size:18px; padding:4px 8px; }
-.new-prod{ display:grid; grid-template-columns: 1.3fr 0.6fr 0.8fr auto; gap:8px; align-items:center; background: var(--surface-alt); border-radius: var(--radius-sm); padding: 12px; }
+.prod-fields, .np-fields{ display:flex; gap:8px; flex-wrap:wrap; }
+.prod-fields .field-group, .np-fields .field-group{ flex:1; min-width:80px; }
+.field-group label{ font-size:10.5px; color:var(--ink-soft); font-weight:700; display:block; margin-bottom:3px; text-transform:uppercase; letter-spacing:.02em; }
+.prod-actions-row{ display:flex; align-items:center; justify-content:space-between; }
+.new-prod{ display:flex; flex-direction:column; gap:10px; background: var(--surface-alt); border-radius: var(--radius-sm); padding: 14px; }
 .new-prod input{ border:1px solid var(--line); border-radius:8px; padding:8px 9px; font-size:13.5px; width:100%; min-width:0; }
 @media (max-width:640px){
-  .prod-item{ grid-template-columns: 1fr 1fr; grid-auto-rows:auto; }
-  .new-prod{ grid-template-columns: 1fr; grid-auto-rows:auto; }
   .new-prod #addProdBtn{ width:100%; padding:14px; }
 }
 .section-lbl{ font-size:12.5px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin: 22px 0 10px; }
@@ -369,9 +371,12 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
         <div class="section-lbl">Yeni Ürün Ekle</div>
         <div class="new-prod">
           <input id="npName" placeholder="Ürün adı (örn. Trileçe)" />
-          <input id="npUnit" placeholder="Birim (adet, kg...)" list="unitOptions" />
-          <input id="npPrice" placeholder="Fiyat (₺)" type="number" step="0.01" inputmode="decimal" />
-          <button class="btn btn-primary" id="addProdBtn">Ekle</button>
+          <div class="np-fields">
+            <div class="field-group"><label>Birim</label><input id="npUnit" placeholder="adet, kg..." list="unitOptions" /></div>
+            <div class="field-group"><label>Ayaktan ₺</label><input id="npPrice" type="number" step="0.01" inputmode="decimal" /></div>
+            <div class="field-group"><label>Trendyol ₺</label><input id="npPriceTrendyol" type="number" step="0.01" inputmode="decimal" /></div>
+          </div>
+          <button class="btn btn-primary btn-block" id="addProdBtn">Ekle</button>
         </div>
         <datalist id="unitOptions">
           <option value="adet"></option><option value="kg"></option><option value="litre"></option>
@@ -408,29 +413,99 @@ const FIREBASE_CONFIG = {
 const CHART_COLORS = ['#C1442D','#5B7A4F','#E0A23B','#3E6E8E','#8E4585','#B4763E','#4C4C9D'];
 
 const DEFAULT_PRODUCTS = [
-  {id:'c250', name:'Çiğköfte 250gr Paket', unit:'adet', price:160, active:true},
-  {id:'c400', name:'Çiğköfte 400gr Paket', unit:'adet', price:280, active:true},
-  {id:'c500', name:'Çiğköfte 500gr Paket', unit:'adet', price:300, active:true},
-  {id:'c750', name:'Çiğköfte 750gr Paket', unit:'adet', price:450, active:true},
-  {id:'c1000', name:'Çiğköfte 1kg Paket', unit:'adet', price:575, active:true},
-  {id:'sushi', name:'Sushi Çiğköfte', unit:'adet', price:130, active:true},
-  {id:'sushidor', name:'Sushi Çiğköfte (Doritolu)', unit:'adet', price:145, active:true},
-  {id:'durum', name:'Dürüm', unit:'adet', price:80, active:true},
-  {id:'megadurum', name:'Mega Dürüm', unit:'adet', price:95, active:true},
-  {id:'durumdor', name:'Dürüm (Doritolu)', unit:'adet', price:95, active:true},
-  {id:'megadurumdor', name:'Mega Dürüm (Doritolu)', unit:'adet', price:110, active:true},
-  {id:'ayrank', name:'Küçük Ayran', unit:'adet', price:20, active:true},
-  {id:'ayranb', name:'Büyük Ayran', unit:'adet', price:30, active:true},
-  {id:'ayran1l', name:'1 Lt Ayran', unit:'adet', price:90, active:true},
-  {id:'kutuicecek', name:'Kutu İçecek', unit:'adet', price:60, active:true},
-  {id:'limonata', name:'Bardak Limonata', unit:'adet', price:20, active:true},
-  {id:'tursusuyu', name:'Bardak Turşu Suyu', unit:'adet', price:20, active:true},
-  {id:'su', name:'Su 0.5lt', unit:'adet', price:15, active:true},
+  {id:'c250', name:'Çiğköfte 250gr Paket', unit:'adet', price:160, priceTrendyol:160, active:true},
+  {id:'c400', name:'Çiğköfte 400gr Paket', unit:'adet', price:280, priceTrendyol:280, active:true},
+  {id:'c500', name:'Çiğköfte 500gr Paket', unit:'adet', price:300, priceTrendyol:300, active:true},
+  {id:'c750', name:'Çiğköfte 750gr Paket', unit:'adet', price:450, priceTrendyol:450, active:true},
+  {id:'c1000', name:'Çiğköfte 1kg Paket', unit:'adet', price:575, priceTrendyol:575, active:true},
+  {id:'sushi', name:'Sushi Çiğköfte', unit:'adet', price:130, priceTrendyol:130, active:true},
+  {id:'sushidor', name:'Sushi Çiğköfte (Doritolu)', unit:'adet', price:145, priceTrendyol:145, active:true},
+  {id:'durum', name:'Dürüm', unit:'adet', price:80, priceTrendyol:80, active:true},
+  {id:'megadurum', name:'Mega Dürüm', unit:'adet', price:95, priceTrendyol:95, active:true},
+  {id:'durumdor', name:'Dürüm (Doritolu)', unit:'adet', price:95, priceTrendyol:95, active:true},
+  {id:'megadurumdor', name:'Mega Dürüm (Doritolu)', unit:'adet', price:110, priceTrendyol:110, active:true},
+  {id:'ayrank', name:'Küçük Ayran', unit:'adet', price:20, priceTrendyol:20, active:true},
+  {id:'ayranb', name:'Büyük Ayran', unit:'adet', price:30, priceTrendyol:30, active:true},
+  {id:'ayran1l', name:'1 Lt Ayran', unit:'adet', price:90, priceTrendyol:90, active:true},
+  {id:'kutuicecek', name:'Kutu İçecek', unit:'adet', price:60, priceTrendyol:60, active:true},
+  {id:'limonata', name:'Bardak Limonata', unit:'adet', price:20, priceTrendyol:20, active:true},
+  {id:'tursusuyu', name:'Bardak Turşu Suyu', unit:'adet', price:20, priceTrendyol:20, active:true},
+  {id:'su', name:'Su 0.5lt', unit:'adet', price:15, priceTrendyol:15, active:true},
 ];
+
+// Trendyol menüsünden okunan güncel fiyatlarla mevcut ürünleri güncelliyoruz
+// (sadece Trendyol fiyatı; ayaktan/mevcut fiyata dokunmuyoruz).
+const PRODUCT_SEED_VERSION = 2;
+const SEED_UPDATES_V2 = [
+  { id:'durum', priceTrendyol:110 },
+  { id:'durumdor', priceTrendyol:135 },
+  { id:'megadurum', priceTrendyol:135 },
+  { id:'ayrank', priceTrendyol:30 },
+  { id:'ayran1l', priceTrendyol:110 },
+  { id:'su', priceTrendyol:25 },
+  { id:'limonata', priceTrendyol:40 },
+  { id:'tursusuyu', priceTrendyol:50 },
+  { id:'c400', priceTrendyol:310 },
+  { id:'c500', priceTrendyol:400 },
+  { id:'c1000', priceTrendyol:630 },
+  { id:'kutuicecek', active:false }, // artık marka bazlı kutu içecekler kullanılıyor
+];
+// Trendyol menüsünde olup henüz listemizde olmayan ürünler.
+// Ayaktan fiyatı bilinmeyenler için Trendyol fiyatı geçici olarak aynen kopyalandı —
+// Ürünler sekmesinden gerçek dükkan fiyatını girmeniz gerekiyor (aşağıdaki sohbette listeledim).
+const NEW_PRODUCTS_V2 = [
+  {id:'kola', name:'Kola (Kutu)', unit:'adet', price:60, priceTrendyol:75, active:true},
+  {id:'fanta', name:'Fanta (Kutu)', unit:'adet', price:60, priceTrendyol:75, active:true},
+  {id:'sevenup', name:'Seven Up (Kutu)', unit:'adet', price:60, priceTrendyol:75, active:true},
+  {id:'fusekarpuz', name:'Fusetea Karpuz (Kutu)', unit:'adet', price:60, priceTrendyol:75, active:true},
+  {id:'fuseananas', name:'Fusetea Ananas (Kutu)', unit:'adet', price:60, priceTrendyol:75, active:true},
+  {id:'doubledurum', name:'Double Dürüm', unit:'adet', price:155, priceTrendyol:155, active:true},
+  {id:'dolutos', name:'Dolutos Çiğköfte', unit:'adet', price:200, priceTrendyol:200, active:true},
+  {id:'trilece', name:'Karamelli Trileçe', unit:'adet', price:75, priceTrendyol:75, active:true},
+  {id:'trilece4lu', name:"4'lü Porsiyon Trileçe", unit:'adet', price:250, priceTrendyol:250, active:true},
+  {id:'halka', name:'Halka Tatlısı', unit:'adet', price:45, priceTrendyol:45, active:true},
+  {id:'halka3lu', name:'3 Adet Halka Tatlısı', unit:'adet', price:100, priceTrendyol:100, active:true},
+  {id:'gofret', name:'Ülker Çikolatalı Gofret', unit:'adet', price:30, priceTrendyol:30, active:true},
+  {id:'c500yesilliksiz', name:'Çiğköfte 500gr (Yeşilliksiz)', unit:'adet', price:300, priceTrendyol:300, active:true},
+  {id:'c1000yesilliksiz', name:'Çiğköfte 1kg (Yeşilliksiz)', unit:'adet', price:550, priceTrendyol:550, active:true},
+  {id:'didiseftali', name:'Didi Şeftali Ice Tea 330ml', unit:'adet', price:65, priceTrendyol:65, active:true},
+  {id:'didilimon', name:'Didi Limon Ice Tea 330ml', unit:'adet', price:65, priceTrendyol:65, active:true},
+  {id:'karadut', name:'Bardak Karadut Suyu', unit:'adet', price:40, priceTrendyol:40, active:true},
+  {id:'salgamacili', name:'Doğanay Şalgam Acılı', unit:'adet', price:55, priceTrendyol:55, active:true},
+  {id:'salgamacisiz', name:'Doğanay Şalgam Acısız', unit:'adet', price:55, priceTrendyol:55, active:true},
+  {id:'fuseseftali1l', name:'Fusetea Şeftali (1 Lt)', unit:'adet', price:100, priceTrendyol:100, active:true},
+  {id:'fuselimon1l', name:'Fuse Tea Limon (1 Lt)', unit:'adet', price:100, priceTrendyol:100, active:true},
+  {id:'salgamacili1l', name:'Doğanay Şalgam Acılı (1 Lt)', unit:'adet', price:100, priceTrendyol:100, active:true},
+  {id:'salgamacisiz1l', name:'Doğanay Şalgam Acısız (1 Lt)', unit:'adet', price:100, priceTrendyol:100, active:true},
+  {id:'kola1l', name:'Litrelik Kola', unit:'adet', price:100, priceTrendyol:100, active:true},
+  {id:'obsessocaramel', name:'Obsesso Caramel Macchiato', unit:'adet', price:75, priceTrendyol:75, active:true},
+  {id:'obsessowhite', name:'Obsesso White Chocolate', unit:'adet', price:75, priceTrendyol:75, active:true},
+  {id:'obsessocreamy', name:'Obsesso Creamy Latte', unit:'adet', price:75, priceTrendyol:75, active:true},
+  {id:'narseksisi', name:'Ziyafet Nar Ekşisi Sosu (1 Lt)', unit:'adet', price:200, priceTrendyol:200, active:true},
+  {id:'ekstralavas', name:'Ekstra Lavaş', unit:'adet', price:10, priceTrendyol:10, active:true},
+  {id:'yesillikpaketi', name:'Yeşillik Paketi', unit:'adet', price:70, priceTrendyol:70, active:true},
+  {id:'tostkasarli', name:'Bazlama Tost (Kaşarlı)', unit:'adet', price:150, priceTrendyol:150, active:true},
+  {id:'tostkarisik', name:'Bazlama Tost (Karışık)', unit:'adet', price:200, priceTrendyol:200, active:true},
+];
+async function applyProductSeedUpdates(){
+  if((state.productSeedVersion||0) >= PRODUCT_SEED_VERSION) return;
+  SEED_UPDATES_V2.forEach(u=>{
+    const p = state.products.find(x=>x.id===u.id);
+    if(p) Object.assign(p, u);
+  });
+  NEW_PRODUCTS_V2.forEach(np=>{
+    if(!state.products.find(x=>x.id===np.id)) state.products.push({...np});
+  });
+  try{
+    await updateDoc(docRef, { products: state.products, productSeedVersion: PRODUCT_SEED_VERSION });
+    state.productSeedVersion = PRODUCT_SEED_VERSION;
+  }catch(e){ console.error(e); }
+}
 
 const state = {
   shopName: 'Ziyafet Çiğköfte',
   products: [],
+  productSeedVersion: 0,
   sales: {}, // { 'YYYY-MM-DD': { orders: [{id,channel,payment,items:[{productId,name,unit,price,qty}],total,ts}] } } — sadece görüntülenen günler için yerel önbellek
   summaries: {}, // { 'YYYY-MM-DD': { total, trendyol, ayaktan, nakit, kart, orderCount } } — Geçmiş sekmesi için hafif özet
   entryDate: todayStr(),
@@ -485,10 +560,16 @@ async function boot(cfg){
     docRef = doc(db, 'cigkofte-shop', 'main');
     const snap = await getDoc(docRef);
     if(!snap.exists()){
-      await setDoc(docRef, { shopName: state.shopName, products: DEFAULT_PRODUCTS });
+      await setDoc(docRef, { shopName: state.shopName, products: DEFAULT_PRODUCTS, productSeedVersion: 0 });
+      state.products = DEFAULT_PRODUCTS.map(p=>({...p}));
+      state.productSeedVersion = 0;
     } else {
       await migrateOldSalesIfNeeded(snap.data());
+      const d = snap.data();
+      state.products = d.products || [];
+      state.productSeedVersion = d.productSeedVersion || 0;
     }
+    await applyProductSeedUpdates();
     listenMeta();
     listenSalesDay(state.entryDate);
     showApp();
@@ -519,6 +600,7 @@ function listenMeta(){
     const d = snap.data();
     state.shopName = d.shopName || 'Ziyafet Çiğköfte';
     state.products = d.products || [];
+    state.productSeedVersion = d.productSeedVersion || 0;
     onMetaUpdate();
   }, (err)=>{ console.error(err); toast('Bağlantı sorunu oluştu'); });
 }
@@ -610,13 +692,18 @@ function resetDraft(keepChannelPayment){
   const keep = keepChannelPayment ? {channel: state.draft.channel, payment: state.draft.payment} : {channel:'ayaktan', payment:'nakit'};
   state.draft = { channel: keep.channel, payment: keep.payment, items:{}, overrideTotal:null, editingOrderId:null, ghostItems:{}, splitNakit:0, splitKart:0 };
 }
+function effectivePrice(p){
+  if(!p) return 0;
+  if(state.draft.channel==='trendyol' && p.priceTrendyol!=null && p.priceTrendyol!==''){ return Number(p.priceTrendyol); }
+  return Number(p.price)||0;
+}
 function draftAutoTotal(){
   let sum=0;
   const prodMap = Object.fromEntries(state.products.map(p=>[p.id,p]));
   Object.keys(state.draft.items).forEach(pid=>{
     const qty = state.draft.items[pid]; if(!qty) return;
     const p = prodMap[pid] || state.draft.ghostItems[pid];
-    if(p) sum += qty * p.price;
+    if(p) sum += qty * effectivePrice(p);
   });
   return sum;
 }
@@ -676,10 +763,12 @@ function renderOrderBuilder(){
       const val = state.draft.items[p.id] || '';
       const row = document.createElement('div');
       row.className='product-row';
+      const priceNow = effectivePrice(p);
+      const showsDiff = !p.ghost && state.draft.channel==='trendyol' && p.priceTrendyol!=null && Number(p.priceTrendyol)!==Number(p.price);
       row.innerHTML = `
         <div class="pname">
           <div class="n">${escapeHtml(p.name)}${p.ghost?' <span style="color:var(--ink-soft);font-weight:400;">(kaldırılmış)</span>':''}</div>
-          <div class="u">${escapeHtml(p.unit)} · ${formatTL(p.price)}</div>
+          <div class="u">${escapeHtml(p.unit)} · ${formatTL(priceNow)}${showsDiff?' <span style="color:var(--ink-soft);">(Trendyol fiyatı)</span>':''}</div>
         </div>
         <div class="qty-wrap">
           <button type="button" class="bstep" data-id="${p.id}" data-dir="-1">−</button>
@@ -741,7 +830,7 @@ document.getElementById('saveOrderBtn').addEventListener('click', async ()=>{
   const items = entries.map(id=>{
     const qty = state.draft.items[id];
     const p = prodMap[id] || state.draft.ghostItems[id];
-    return { productId:id, name:p.name, unit:p.unit, price:p.price, qty };
+    return { productId:id, name:p.name, unit:p.unit, price:effectivePrice(p), qty };
   });
   const auto = items.reduce((s,it)=> s + it.qty*it.price, 0);
   let total, splitNakit=null, splitKart=null;
@@ -1039,10 +1128,13 @@ function renderProducts(){
   if(state.products.length===0){ list.innerHTML = '<div class="empty-note">Henüz ürün yok. Aşağıdan ilk ürününüzü ekleyin.</div>'; return; }
   list.innerHTML = state.products.map(p=>`
     <div class="prod-item" data-id="${p.id}" style="${p.active===false?'opacity:.5;':''}">
-      <input class="f-name" value="${escapeHtml(p.name)}" />
-      <input class="f-unit" value="${escapeHtml(p.unit)}" list="unitOptions" />
-      <input class="f-price" type="number" step="0.01" inputmode="decimal" value="${p.price}" />
-      <div class="prod-actions">
+      <input class="f-name" value="${escapeHtml(p.name)}" placeholder="Ürün adı" />
+      <div class="prod-fields">
+        <div class="field-group"><label>Birim</label><input class="f-unit" value="${escapeHtml(p.unit)}" list="unitOptions" /></div>
+        <div class="field-group"><label>Ayaktan ₺</label><input class="f-price" type="number" step="0.01" inputmode="decimal" value="${p.price}" /></div>
+        <div class="field-group"><label>Trendyol ₺</label><input class="f-price-trendyol" type="number" step="0.01" inputmode="decimal" value="${p.priceTrendyol!=null? p.priceTrendyol : p.price}" /></div>
+      </div>
+      <div class="prod-actions-row">
         <label class="toggle-row"><input type="checkbox" class="f-active" ${p.active!==false?'checked':''}/>Aktif</label>
         <button class="del" title="Sil">✕</button>
       </div>
@@ -1053,6 +1145,7 @@ function renderProducts(){
     row.querySelector('.f-name').addEventListener('change', e=> updateProduct(id,'name',e.target.value));
     row.querySelector('.f-unit').addEventListener('change', e=> updateProduct(id,'unit',e.target.value));
     row.querySelector('.f-price').addEventListener('change', e=> updateProduct(id,'price', parseFloat(e.target.value)||0));
+    row.querySelector('.f-price-trendyol').addEventListener('change', e=> updateProduct(id,'priceTrendyol', parseFloat(e.target.value)||0));
     row.querySelector('.f-active').addEventListener('change', e=> updateProduct(id,'active', e.target.checked));
     row.querySelector('.del').addEventListener('click', ()=> deleteProduct(id));
   });
@@ -1079,12 +1172,15 @@ document.getElementById('addProdBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('npName').value.trim();
   const unit = document.getElementById('npUnit').value.trim() || 'adet';
   const price = parseFloat(document.getElementById('npPrice').value) || 0;
+  const priceTrendyolRaw = document.getElementById('npPriceTrendyol').value;
+  const priceTrendyol = priceTrendyolRaw!=='' ? (parseFloat(priceTrendyolRaw)||0) : price;
   if(!name){ toast('Ürün adı girin'); return; }
-  state.products.push({id: uid(), name, unit, price, active:true});
+  state.products.push({id: uid(), name, unit, price, priceTrendyol, active:true});
   await saveProducts();
   document.getElementById('npName').value='';
   document.getElementById('npUnit').value='';
   document.getElementById('npPrice').value='';
+  document.getElementById('npPriceTrendyol').value='';
   renderProducts();
   renderOrderBuilder();
   toast('Ürün eklendi');
