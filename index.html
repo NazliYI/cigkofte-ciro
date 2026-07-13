@@ -118,6 +118,15 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 
 .draft-summary{ margin-top:12px; padding:10px 14px; background:var(--surface-alt); border-radius:var(--radius-sm); font-size:13px; font-weight:700; color:var(--ink); text-align:center; }
 
+.draft-lines-group{ margin-bottom:10px; }
+.draft-lines-group .glabel{ font-size:11px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px; }
+.draft-line{ display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px dashed var(--line); font-size:13px; }
+.draft-line:last-child{ border-bottom:none; }
+.draft-line .dl-name{ color:var(--ink); }
+.draft-line .dl-right{ display:flex; align-items:center; gap:8px; }
+.draft-line .dl-amt{ font-weight:600; color:var(--ink-soft); white-space:nowrap; }
+.draft-line .dl-del{ border:none; background:var(--surface-alt); width:22px; height:22px; border-radius:6px; font-size:11px; color:#B23A48; }
+
 .pay-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
 .pay-table th{ text-align:left; font-size:10.5px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:6px 4px; border-bottom:1px solid var(--line); }
 .pay-table td{ padding:7px 4px; border-bottom:1px dashed var(--line); }
@@ -207,7 +216,6 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 .badge.nakit{ background:#EFE6F5; color:#6B4894; }
 .badge.kart{ background:#E1EEF3; color:var(--blue); }
 .badge.online{ background:#E7ECF3; color:#3E5C82; }
-.badge.split{ background:#F3E3D0; color:#8A5A1E; }
 .order-row .items{ font-size:12.5px; color:var(--ink-soft); }
 .order-row .amt{ font-weight:700; font-family:'Anton',sans-serif; color:var(--red-dark); font-size:15.5px; white-space:nowrap; }
 .order-row .actions{ display:flex; gap:4px; flex-shrink:0; }
@@ -285,28 +293,16 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
               <button type="button" data-val="trendyol">Trendyol</button>
             </div>
             <div id="paymentSegWrap" style="margin-top:8px;">
+              <div style="font-size:11.5px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.03em; margin-bottom:5px;">Şimdi eklenecek ürünler hangi ödemeyle?</div>
               <div class="seg" id="paymentSeg"></div>
             </div>
             <div id="builderProductRows" style="margin-top:12px;"></div>
             <div class="draft-summary" id="draftSummary"></div>
+            <div id="draftLinesBox" style="margin-top:12px;"></div>
             <div class="override-row" id="autoTotalHint">Otomatik: 0,00 ₺</div>
             <div class="big-total" id="normalTotalWrap">
               <span class="lbl">SİPARİŞ TOPLAMI</span>
               <input type="number" step="0.01" id="orderTotalInput" class="total-input" />
-            </div>
-            <div id="splitPayWrap" style="display:none; margin-top:10px;">
-              <div style="display:flex; gap:10px;">
-                <div style="flex:1;">
-                  <label style="font-size:12px;color:var(--ink-soft); font-weight:600;">Nakit Tutarı</label>
-                  <input type="number" step="0.01" id="splitNakitInput" style="width:100%; margin-top:4px; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:15px; font-weight:600;" />
-                </div>
-                <div style="flex:1;">
-                  <label style="font-size:12px;color:var(--ink-soft); font-weight:600;">Kart Tutarı</label>
-                  <input type="number" step="0.01" id="splitKartInput" style="width:100%; margin-top:4px; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:15px; font-weight:600;" />
-                </div>
-              </div>
-              <div style="font-size:12px; color:var(--ink-soft); margin-top:6px;" id="splitAutoHint">Ürünlerin toplamı: 0,00 ₺</div>
-              <div style="font-size:12px; color:#B23A48; margin-top:4px; display:none;" id="splitMismatchWarn"></div>
             </div>
             <div class="actions-row">
               <button class="btn btn-primary" id="saveOrderBtn">Siparişi Kaydet</button>
@@ -510,7 +506,7 @@ const state = {
   summaries: {}, // { 'YYYY-MM-DD': { total, trendyol, ayaktan, nakit, kart, orderCount } } — Geçmiş sekmesi için hafif özet
   entryDate: todayStr(),
   viewingDate: null,
-  draft: { channel:'ayaktan', payment:'nakit', items:{}, overrideTotal:null, editingOrderId:null, ghostItems:{}, splitNakit:0, splitKart:0 },
+  draft: { channel:'ayaktan', activeTag:'nakit', itemsByTag:{nakit:{},kart:{},online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{} },
 };
 
 let db, docRef;
@@ -688,9 +684,9 @@ entryDateInput.addEventListener('change', ()=>{
 document.getElementById('todayBadge').style.display = 'inline-block';
 
 // ---------- Order draft / builder ----------
-function resetDraft(keepChannelPayment){
-  const keep = keepChannelPayment ? {channel: state.draft.channel, payment: state.draft.payment} : {channel:'ayaktan', payment:'nakit'};
-  state.draft = { channel: keep.channel, payment: keep.payment, items:{}, overrideTotal:null, editingOrderId:null, ghostItems:{}, splitNakit:0, splitKart:0 };
+function resetDraft(keepChannelTag){
+  const keep = keepChannelTag ? {channel: state.draft.channel, activeTag: state.draft.activeTag} : {channel:'ayaktan', activeTag:'nakit'};
+  state.draft = { channel: keep.channel, activeTag: keep.activeTag, itemsByTag: {nakit:{}, kart:{}, online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{} };
 }
 function effectivePrice(p){
   if(!p) return 0;
@@ -700,16 +696,19 @@ function effectivePrice(p){
 function draftAutoTotal(){
   let sum=0;
   const prodMap = Object.fromEntries(state.products.map(p=>[p.id,p]));
-  Object.keys(state.draft.items).forEach(pid=>{
-    const qty = state.draft.items[pid]; if(!qty) return;
-    const p = prodMap[pid] || state.draft.ghostItems[pid];
-    if(p) sum += qty * effectivePrice(p);
+  ['nakit','kart','online'].forEach(tag=>{
+    const bucket = state.draft.itemsByTag[tag] || {};
+    Object.keys(bucket).forEach(pid=>{
+      const qty = bucket[pid]; if(!qty) return;
+      const p = prodMap[pid] || state.draft.ghostItems[pid];
+      if(p) sum += qty * effectivePrice(p);
+    });
   });
   return sum;
 }
-const PAYMENT_OPTIONS = {
-  ayaktan: [ {val:'nakit', label:'Nakit'}, {val:'kart', label:'Kart'}, {val:'split', label:'Bölünmüş'} ],
-  trendyol: [ {val:'online', label:'Online'}, {val:'nakit', label:'Kapıda Nakit'}, {val:'kart', label:'Kapıda Kart'}, {val:'split', label:'Kapıda Bölünmüş'} ],
+const PAYMENT_TAGS = {
+  ayaktan: [ {val:'nakit', label:'Nakit'}, {val:'kart', label:'Kart'} ],
+  trendyol: [ {val:'online', label:'Online'}, {val:'nakit', label:'Kapıda Nakit'}, {val:'kart', label:'Kapıda Kart'} ],
 };
 document.querySelectorAll('#channelSeg button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -720,55 +719,40 @@ document.querySelectorAll('#channelSeg button').forEach(btn=>{
 document.getElementById('orderTotalInput').addEventListener('input', (e)=>{
   state.draft.overrideTotal = e.target.value===''? null : (parseFloat(e.target.value.replace(',','.'))||0);
 });
-document.getElementById('splitNakitInput').addEventListener('input', (e)=>{
-  state.draft.splitNakit = parseFloat((e.target.value||'0').replace(',','.'))||0;
-  updateSplitHint();
-});
-document.getElementById('splitKartInput').addEventListener('input', (e)=>{
-  state.draft.splitKart = parseFloat((e.target.value||'0').replace(',','.'))||0;
-  updateSplitHint();
-});
-function updateSplitHint(){
-  const auto = draftAutoTotal();
-  const sum = (state.draft.splitNakit||0) + (state.draft.splitKart||0);
-  document.getElementById('splitAutoHint').textContent = 'Ürünlerin toplamı: ' + formatTL(auto);
-  const warn = document.getElementById('splitMismatchWarn');
-  if(auto>0 && Math.abs(sum-auto)>0.5){
-    warn.style.display='block';
-    warn.textContent = `Girdiğiniz toplam (${formatTL(sum)}) ürünlerin toplamından (${formatTL(auto)}) farklı`;
-  } else {
-    warn.style.display='none';
-  }
-}
 
 function renderOrderBuilder(){
   document.querySelectorAll('#channelSeg button').forEach(b=> b.classList.toggle('active', b.dataset.val===state.draft.channel));
-  const opts = PAYMENT_OPTIONS[state.draft.channel] || PAYMENT_OPTIONS.ayaktan;
-  if(!opts.find(o=>o.val===state.draft.payment)){ state.draft.payment = opts[0].val; }
+  const opts = PAYMENT_TAGS[state.draft.channel] || PAYMENT_TAGS.ayaktan;
+  if(!opts.find(o=>o.val===state.draft.activeTag)){ state.draft.activeTag = opts[0].val; }
   const paySeg = document.getElementById('paymentSeg');
-  paySeg.innerHTML = opts.map(o=> `<button type="button" data-val="${o.val}" class="${o.val===state.draft.payment?'active':''}">${o.label}</button>`).join('');
+  paySeg.innerHTML = opts.map(o=> `<button type="button" data-val="${o.val}" class="${o.val===state.draft.activeTag?'active':''}">${o.label}</button>`).join('');
   paySeg.querySelectorAll('button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ state.draft.payment = btn.dataset.val; renderOrderBuilder(); });
+    btn.addEventListener('click', ()=>{ state.draft.activeTag = btn.dataset.val; renderOrderBuilder(); });
   });
 
   const wrap = document.getElementById('builderProductRows');
   const actives = activeProducts();
   const ghostIds = Object.keys(state.draft.ghostItems).filter(id=> !actives.find(p=>p.id===id));
   wrap.innerHTML = '';
+  const activeBucket = state.draft.itemsByTag[state.draft.activeTag] || {};
   if(actives.length===0 && ghostIds.length===0){
     wrap.innerHTML = '<div class="empty-note">Aktif ürün yok. <a data-goto="products">Ürünler</a> sekmesinden ekleyin.</div>';
   } else {
     const rows = [...actives, ...ghostIds.map(id=>({id, ...state.draft.ghostItems[id], ghost:true}))];
     rows.forEach(p=>{
-      const val = state.draft.items[p.id] || '';
+      const val = activeBucket[p.id] || '';
       const row = document.createElement('div');
       row.className='product-row';
       const priceNow = effectivePrice(p);
       const showsDiff = !p.ghost && state.draft.channel==='trendyol' && p.priceTrendyol!=null && Number(p.priceTrendyol)!==Number(p.price);
+      const otherHints = opts.filter(o=>o.val!==state.draft.activeTag).map(o=>{
+        const q = (state.draft.itemsByTag[o.val]||{})[p.id];
+        return q>0 ? `${o.label}: ${formatQty(q)}` : null;
+      }).filter(Boolean);
       row.innerHTML = `
         <div class="pname">
           <div class="n">${escapeHtml(p.name)}${p.ghost?' <span style="color:var(--ink-soft);font-weight:400;">(kaldırılmış)</span>':''}</div>
-          <div class="u">${escapeHtml(p.unit)} · ${formatTL(priceNow)}${showsDiff?' <span style="color:var(--ink-soft);">(Trendyol fiyatı)</span>':''}</div>
+          <div class="u">${escapeHtml(p.unit)} · ${formatTL(priceNow)}${showsDiff?' <span style="color:var(--ink-soft);">(Trendyol fiyatı)</span>':''}${otherHints.length? ` <span style="color:var(--ink-soft);">· eklendi: ${otherHints.join(', ')}</span>`:''}</div>
         </div>
         <div class="qty-wrap">
           <button type="button" class="bstep" data-id="${p.id}" data-dir="-1">−</button>
@@ -791,62 +775,84 @@ function renderOrderBuilder(){
     });
   }
   updateBuilderTotal();
-  const isSplit = state.draft.payment === 'split';
-  document.getElementById('normalTotalWrap').style.display = isSplit ? 'none' : 'flex';
-  document.getElementById('splitPayWrap').style.display = isSplit ? 'block' : 'none';
-  if(isSplit){
-    document.getElementById('splitNakitInput').value = state.draft.splitNakit || '';
-    document.getElementById('splitKartInput').value = state.draft.splitKart || '';
-    updateSplitHint();
-  }
+  renderDraftLines();
   const channelLabel = state.draft.channel==='trendyol' ? 'Trendyol' : 'Ayaktan';
-  const chosenOpt = opts.find(o=>o.val===state.draft.payment);
-  document.getElementById('draftSummary').textContent = `Bu sipariş: ${channelLabel} · ${chosenOpt ? chosenOpt.label : ''} olarak kaydedilecek`;
+  const chosenOpt = opts.find(o=>o.val===state.draft.activeTag);
+  document.getElementById('draftSummary').textContent = `Şimdi eklenen ürünler: ${channelLabel} · ${chosenOpt ? chosenOpt.label : ''}`;
   document.getElementById('saveOrderBtn').textContent = state.draft.editingOrderId ? 'Siparişi Güncelle' : 'Siparişi Kaydet';
   document.getElementById('cancelEditBtn').style.display = state.draft.editingOrderId ? 'inline-block' : 'none';
 }
 function onBuilderQtyChange(){
   const wrap = document.getElementById('builderProductRows');
+  const bucket = state.draft.itemsByTag[state.draft.activeTag] || (state.draft.itemsByTag[state.draft.activeTag]={});
   wrap.querySelectorAll('input[id^="bqty-"]').forEach(inp=>{
     const id = inp.id.replace('bqty-','');
     const v = parseFloat((inp.value||'0').replace(',','.'))||0;
-    if(v>0) state.draft.items[id]=v; else delete state.draft.items[id];
+    if(v>0) bucket[id]=v; else delete bucket[id];
   });
   updateBuilderTotal();
+  renderDraftLines();
 }
 function updateBuilderTotal(){
   const auto = draftAutoTotal();
   document.getElementById('autoTotalHint').textContent = 'Otomatik: ' + formatTL(auto);
   const overrideInp = document.getElementById('orderTotalInput');
   if(state.draft.overrideTotal===null){ overrideInp.value = auto ? auto.toFixed(2) : ''; }
-  if(state.draft.payment==='split'){ updateSplitHint(); }
+}
+function renderDraftLines(){
+  const box = document.getElementById('draftLinesBox');
+  const prodMap = Object.fromEntries(state.products.map(p=>[p.id,p]));
+  const tags = PAYMENT_TAGS[state.draft.channel] || PAYMENT_TAGS.ayaktan;
+  let any=false, html='';
+  tags.forEach(tagOpt=>{
+    const bucket = state.draft.itemsByTag[tagOpt.val] || {};
+    const entries = Object.entries(bucket).filter(([,q])=>q>0);
+    if(entries.length===0) return;
+    any=true;
+    let groupTotal=0;
+    const lines = entries.map(([pid,qty])=>{
+      const p = prodMap[pid] || state.draft.ghostItems[pid];
+      if(!p) return '';
+      const amt = qty*effectivePrice(p);
+      groupTotal += amt;
+      return `<div class="draft-line" data-pid="${pid}" data-tag="${tagOpt.val}">
+        <span class="dl-name">${formatQty(qty)}× ${escapeHtml(p.name)}</span>
+        <span class="dl-right"><span class="dl-amt">${formatTL(amt)}</span><button type="button" class="dl-del" title="Kaldır">✕</button></span>
+      </div>`;
+    }).join('');
+    html += `<div class="draft-lines-group"><div class="glabel">${tagOpt.label} · ${formatTL(groupTotal)}</div>${lines}</div>`;
+  });
+  if(!any){ box.innerHTML=''; return; }
+  box.innerHTML = html;
+  box.querySelectorAll('.dl-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.draft-line');
+      const pid = row.dataset.pid, tag = row.dataset.tag;
+      delete state.draft.itemsByTag[tag][pid];
+      renderOrderBuilder();
+    });
+  });
 }
 
 document.getElementById('saveOrderBtn').addEventListener('click', async ()=>{
-  const entries = Object.keys(state.draft.items).filter(id=> state.draft.items[id]>0);
-  if(entries.length===0){ toast('En az bir ürün seçin'); return; }
-  if(!state.draft.payment){ toast('Ödeme yöntemini seçin'); return; }
   const prodMap = Object.fromEntries(state.products.map(p=>[p.id,p]));
-  const items = entries.map(id=>{
-    const qty = state.draft.items[id];
-    const p = prodMap[id] || state.draft.ghostItems[id];
-    return { productId:id, name:p.name, unit:p.unit, price:effectivePrice(p), qty };
+  const items = [];
+  ['nakit','kart','online'].forEach(tag=>{
+    const bucket = state.draft.itemsByTag[tag] || {};
+    Object.entries(bucket).forEach(([pid,qty])=>{
+      if(!qty) return;
+      const p = prodMap[pid] || state.draft.ghostItems[pid];
+      if(!p) return;
+      items.push({ productId:pid, name:p.name, unit:p.unit, price:effectivePrice(p), qty, payment:tag });
+    });
   });
+  if(items.length===0){ toast('En az bir ürün seçin'); return; }
   const auto = items.reduce((s,it)=> s + it.qty*it.price, 0);
-  let total, splitNakit=null, splitKart=null;
-  if(state.draft.payment==='split'){
-    splitNakit = state.draft.splitNakit||0;
-    splitKart = state.draft.splitKart||0;
-    if(splitNakit<=0 && splitKart<=0){ toast('Nakit ve kart tutarlarını girin'); return; }
-    total = splitNakit + splitKart;
-  } else {
-    total = state.draft.overrideTotal!==null ? state.draft.overrideTotal : auto;
-  }
+  const total = state.draft.overrideTotal!==null ? state.draft.overrideTotal : auto;
 
   if(!state.sales[state.entryDate]) state.sales[state.entryDate] = { orders: [] };
   const dayObj = state.sales[state.entryDate];
-  const orderObj = { id: state.draft.editingOrderId || uid(), channel: state.draft.channel, payment: state.draft.payment, items, total, ts: Date.now() };
-  if(state.draft.payment==='split'){ orderObj.splitNakit = splitNakit; orderObj.splitKart = splitKart; }
+  const orderObj = { id: state.draft.editingOrderId || uid(), channel: state.draft.channel, items, total, ts: Date.now() };
   if(state.draft.editingOrderId){
     const idx = dayObj.orders.findIndex(o=>o.id===state.draft.editingOrderId);
     if(idx>-1) dayObj.orders[idx] = orderObj;
@@ -861,11 +867,18 @@ document.getElementById('saveOrderBtn').addEventListener('click', async ()=>{
 document.getElementById('cancelEditBtn').addEventListener('click', ()=>{ resetDraft(true); renderOrderBuilder(); });
 
 // ---------- Orders list ----------
-function paymentLabel(o){
-  if(o.payment==='split') return 'Bölünmüş';
-  if(o.payment==='online') return 'Online';
-  if(o.channel==='trendyol') return o.payment==='nakit' ? 'Kapıda Nakit' : 'Kapıda Kart';
-  return o.payment==='nakit' ? 'Nakit' : 'Kart';
+function paymentTagLabel(tag, channel){
+  if(tag==='online') return 'Online';
+  if(channel==='trendyol') return tag==='nakit' ? 'Kapıda Nakit' : 'Kapıda Kart';
+  return tag==='nakit' ? 'Nakit' : 'Kart';
+}
+function orderTagTotals(o){
+  const totals = {};
+  o.items.forEach(it=>{
+    const key = it.payment || 'nakit';
+    totals[key] = (totals[key]||0) + it.qty*it.price;
+  });
+  return totals;
 }
 function renderOrdersListInto(dateStr, elId, readOnly){
   const wrap = document.getElementById(elId);
@@ -874,15 +887,15 @@ function renderOrdersListInto(dateStr, elId, readOnly){
   if(orders.length===0){ wrap.innerHTML = '<div class="empty-note">Sipariş yok.</div>'; return; }
   wrap.innerHTML = orders.map(o=>{
     const itemsTxt = o.items.map(it=> `${formatQty(it.qty)}× ${escapeHtml(it.name)}`).join(', ');
-    const splitTxt = o.payment==='split' ? `<div class="items" style="margin-top:2px;">Nakit ${formatTL(o.splitNakit||0)} · Kart ${formatTL(o.splitKart||0)}</div>` : '';
+    const tagTotals = orderTagTotals(o);
+    const badges = Object.keys(tagTotals).map(tag=> `<span class="badge ${tag}">${paymentTagLabel(tag,o.channel)} ${formatTL(tagTotals[tag])}</span>`).join('');
     return `<div class="order-row" data-id="${o.id}">
       <div>
         <div class="meta">
           <span class="badge ${o.channel}">${o.channel==='trendyol'?'Trendyol':'Ayaktan'}</span>
-          ${o.payment? `<span class="badge ${o.payment}">${paymentLabel(o)}</span>`:''}
+          ${badges}
         </div>
         <div class="items">${itemsTxt}</div>
-        ${splitTxt}
       </div>
       <div class="amt">${formatTL(o.total)}</div>
       ${readOnly? '' : `<div class="actions"><button class="edit-order" title="Düzenle">✎</button><button class="del-order" title="Sil">✕</button></div>`}
@@ -900,14 +913,18 @@ function editOrder(orderId){
   const o = dayObj.orders.find(x=>x.id===orderId);
   if(!o) return;
   const prodMap = Object.fromEntries(state.products.map(p=>[p.id,p]));
-  const items = {}; const ghosts = {};
+  const itemsByTag = {nakit:{}, kart:{}, online:{}};
+  const ghosts = {};
   o.items.forEach(it=>{
-    items[it.productId] = it.qty;
+    const tag = it.payment || 'nakit';
+    if(!itemsByTag[tag]) itemsByTag[tag] = {};
+    itemsByTag[tag][it.productId] = (itemsByTag[tag][it.productId]||0) + it.qty;
     if(!prodMap[it.productId]) ghosts[it.productId] = {name:it.name, unit:it.unit, price:it.price};
   });
-  state.draft = { channel:o.channel, payment:o.payment||'nakit', items, overrideTotal:o.total, editingOrderId:o.id, ghostItems:ghosts, splitNakit:o.splitNakit||0, splitKart:o.splitKart||0 };
+  const firstTag = o.items[0] ? (o.items[0].payment || 'nakit') : 'nakit';
+  state.draft = { channel:o.channel, activeTag:firstTag, itemsByTag, overrideTotal:o.total, editingOrderId:o.id, ghostItems:ghosts };
   renderOrderBuilder();
-  if(o.payment!=='split'){ document.getElementById('orderTotalInput').value = o.total.toFixed(2); }
+  document.getElementById('orderTotalInput').value = o.total.toFixed(2);
   toast('Sipariş düzenleniyor, değişiklik yapıp güncelleyin');
 }
 async function deleteOrder(orderId){
@@ -929,14 +946,19 @@ function computePaymentBreakdown(dateStr){
     online: { count:0, total:0 },
   };
   orders.forEach(o=>{
-    if(o.payment==='nakit'){ b.nakit[o.channel].count++; b.nakit[o.channel].total+=o.total; }
-    else if(o.payment==='kart'){ b.kart[o.channel].count++; b.kart[o.channel].total+=o.total; }
-    else if(o.payment==='online'){ b.online.count++; b.online.total+=o.total; }
-    else if(o.payment==='split'){
-      const sN = o.splitNakit||0, sK = o.splitKart||0;
-      if(sN>0){ b.nakit[o.channel].count++; b.nakit[o.channel].total+=sN; }
-      if(sK>0){ b.kart[o.channel].count++; b.kart[o.channel].total+=sK; }
-    }
+    const autoSum = o.items.reduce((s,it)=>s+it.qty*it.price,0);
+    const factor = autoSum>0 ? (o.total/autoSum) : 1;
+    const perTag = {};
+    o.items.forEach(it=>{
+      const tag = it.payment || 'nakit';
+      perTag[tag] = (perTag[tag]||0) + it.qty*it.price*factor;
+    });
+    Object.keys(perTag).forEach(tag=>{
+      const amt = perTag[tag];
+      if(tag==='online'){ b.online.count++; b.online.total+=amt; }
+      else if(tag==='nakit'){ b.nakit[o.channel].count++; b.nakit[o.channel].total+=amt; }
+      else if(tag==='kart'){ b.kart[o.channel].count++; b.kart[o.channel].total+=amt; }
+    });
   });
   return b;
 }
@@ -972,16 +994,16 @@ function computeAggFromOrders(orders){
   orders.forEach(o=>{
     total += o.total;
     if(o.channel==='trendyol') trendyol += o.total; else ayaktan += o.total;
-    if(o.payment==='nakit') nakit+=o.total;
-    else if(o.payment==='kart') kart+=o.total;
-    else if(o.payment==='split'){ nakit += (o.splitNakit||0); kart += (o.splitKart||0); }
     const autoSum = o.items.reduce((s,it)=> s+it.qty*it.price, 0);
     const factor = autoSum>0 ? (o.total/autoSum) : 1;
     o.items.forEach(it=>{
+      const tag = it.payment || 'nakit';
+      const rev = it.qty*it.price*factor;
+      if(tag==='nakit') nakit+=rev; else if(tag==='kart') kart+=rev;
       const key = it.productId;
       if(!breakdown[key]) breakdown[key] = {name:it.name, unit:it.unit, qty:0, revenue:0};
       breakdown[key].qty += it.qty;
-      breakdown[key].revenue += it.qty*it.price*factor;
+      breakdown[key].revenue += rev;
     });
   });
   return {total, trendyol, ayaktan, nakit, kart, breakdown, orderCount: orders.length};
