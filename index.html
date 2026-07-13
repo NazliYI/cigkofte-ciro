@@ -114,6 +114,19 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 .seg{ display:flex; gap:6px; background: var(--surface-alt); padding:4px; border-radius:12px; }
 .seg button{ flex:1; border:none; background:transparent; padding:9px; border-radius:9px; font-weight:600; font-size:13.5px; color: var(--ink-soft); }
 .seg button.active{ background: var(--red); color:#fff; }
+.seg button.active::before{ content:"✓ "; }
+
+.draft-summary{ margin-top:12px; padding:10px 14px; background:var(--surface-alt); border-radius:var(--radius-sm); font-size:13px; font-weight:700; color:var(--ink); text-align:center; }
+
+.pay-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.pay-table th{ text-align:left; font-size:10.5px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:6px 4px; border-bottom:1px solid var(--line); }
+.pay-table td{ padding:7px 4px; border-bottom:1px dashed var(--line); }
+.pay-table tr:last-child td{ border-bottom:none; }
+.pay-table tr.pt-total td{ font-weight:700; color:var(--red-dark); border-top:2px solid var(--ink); border-bottom:none; }
+.pay-table tr.pt-total + tr td{ border-top:none; }
+.pay-table td:nth-child(2), .pay-table td:nth-child(3){ text-align:right; white-space:nowrap; }
+.pay-table th:nth-child(2), .pay-table th:nth-child(3){ text-align:right; }
+.pay-table tr.pt-group-end td{ padding-bottom:12px; }
 
 .product-row{ display:flex; align-items:center; gap:12px; padding: 10px 0; border-bottom: 1px dashed var(--line); }
 .product-row:last-child{ border-bottom:none; }
@@ -272,6 +285,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
               <div class="seg" id="paymentSeg"></div>
             </div>
             <div id="builderProductRows" style="margin-top:12px;"></div>
+            <div class="draft-summary" id="draftSummary"></div>
             <div class="override-row" id="autoTotalHint">Otomatik: 0,00 ₺</div>
             <div class="big-total">
               <span class="lbl">SİPARİŞ TOPLAMI</span>
@@ -293,6 +307,10 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
           <div class="card" style="margin-top:14px;">
             <h3 style="font-size:15px;">Dağılım</h3>
             <div class="bars" id="barsBox"></div>
+          </div>
+          <div class="card" style="margin-top:14px;">
+            <h3 style="font-size:15px;">Ödeme Detayı</h3>
+            <div id="paymentTableBox"></div>
           </div>
         </div>
       </div>
@@ -319,6 +337,10 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
         <div class="card" style="margin-top:14px;">
           <h3 style="font-size:15px;">Dağılım</h3>
           <div class="bars" id="detailBars"></div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h3 style="font-size:15px;">Ödeme Detayı</h3>
+          <div id="detailPaymentTableBox"></div>
         </div>
         <div class="actions-row">
           <button class="btn btn-primary" id="editDayBtn">Bu Günü Düzenle</button>
@@ -573,6 +595,9 @@ function renderOrderBuilder(){
     });
   }
   updateBuilderTotal();
+  const channelLabel = state.draft.channel==='trendyol' ? 'Trendyol' : 'Ayaktan';
+  const chosenOpt = opts.find(o=>o.val===state.draft.payment);
+  document.getElementById('draftSummary').textContent = `Bu sipariş: ${channelLabel} · ${chosenOpt ? chosenOpt.label : ''} olarak kaydedilecek`;
   document.getElementById('saveOrderBtn').textContent = state.draft.editingOrderId ? 'Siparişi Güncelle' : 'Siparişi Kaydet';
   document.getElementById('cancelEditBtn').style.display = state.draft.editingOrderId ? 'inline-block' : 'none';
 }
@@ -677,6 +702,47 @@ async function deleteOrder(orderId){
 }
 
 // ---------- Aggregates & receipt ----------
+function computePaymentBreakdown(dateStr){
+  const dayObj = state.sales[dateStr];
+  const orders = dayObj? dayObj.orders : [];
+  const b = {
+    nakit: { ayaktan:{count:0,total:0}, trendyol:{count:0,total:0} },
+    kart: { ayaktan:{count:0,total:0}, trendyol:{count:0,total:0} },
+    online: { count:0, total:0 },
+  };
+  orders.forEach(o=>{
+    if(o.payment==='nakit'){ b.nakit[o.channel].count++; b.nakit[o.channel].total+=o.total; }
+    else if(o.payment==='kart'){ b.kart[o.channel].count++; b.kart[o.channel].total+=o.total; }
+    else if(o.payment==='online'){ b.online.count++; b.online.total+=o.total; }
+  });
+  return b;
+}
+function buildPaymentTableHTML(dateStr){
+  const b = computePaymentBreakdown(dateStr);
+  const nakitTotal = b.nakit.ayaktan.total + b.nakit.trendyol.total;
+  const nakitCount = b.nakit.ayaktan.count + b.nakit.trendyol.count;
+  const kartTotal = b.kart.ayaktan.total + b.kart.trendyol.total;
+  const kartCount = b.kart.ayaktan.count + b.kart.trendyol.count;
+  if(nakitCount+kartCount+b.online.count===0){
+    return '<div class="r-empty" style="text-align:left;color:var(--ink-soft);font-size:13px;">Veri yok</div>';
+  }
+  const row = (label, count, total)=> `<tr><td>${label}</td><td>${count}</td><td>${formatTL(total)}</td></tr>`;
+  const totalRow = (label, count, total)=> `<tr class="pt-total"><td>${label}</td><td>${count}</td><td>${formatTL(total)}</td></tr>`;
+  return `
+    <table class="pay-table">
+      <thead><tr><th>Kaynak</th><th>Sipariş</th><th>Tutar</th></tr></thead>
+      <tbody>
+        ${row('Ayaktan Nakit', b.nakit.ayaktan.count, b.nakit.ayaktan.total)}
+        ${row('Trendyol Kapıda Nakit', b.nakit.trendyol.count, b.nakit.trendyol.total)}
+        ${totalRow('Nakit Toplam', nakitCount, nakitTotal)}
+        ${row('Ayaktan Kart', b.kart.ayaktan.count, b.kart.ayaktan.total)}
+        ${row('Trendyol Kapıda Kart', b.kart.trendyol.count, b.kart.trendyol.total)}
+        ${totalRow('Kart Toplam', kartCount, kartTotal)}
+        ${totalRow('Trendyol Online', b.online.count, b.online.total)}
+      </tbody>
+    </table>
+  `;
+}
 function computeDayAggregates(dateStr){
   const dayObj = state.sales[dateStr];
   const orders = dayObj? dayObj.orders : [];
@@ -717,6 +783,7 @@ function renderDaySummary(){
   document.getElementById('chipKart').querySelector('b').textContent = formatTL(agg.kart);
   document.getElementById('receiptBox').innerHTML = buildReceiptHTML(state.entryDate, agg);
   renderBars('barsBox', agg);
+  document.getElementById('paymentTableBox').innerHTML = buildPaymentTableHTML(state.entryDate);
   updateStickyMobile(agg.total);
 }
 function buildReceiptHTML(dateStr, agg){
@@ -807,6 +874,7 @@ function showDayDetail(dateStr){
   renderOrdersListInto(dateStr, 'detailOrdersList', true);
   document.getElementById('detailReceipt').innerHTML = buildReceiptHTML(dateStr, agg);
   renderBars('detailBars', agg);
+  document.getElementById('detailPaymentTableBox').innerHTML = buildPaymentTableHTML(dateStr);
 }
 document.getElementById('backToList').addEventListener('click', ()=>{
   document.getElementById('historyDetailWrap').style.display='none';
