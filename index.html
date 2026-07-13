@@ -225,34 +225,10 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 </head>
 <body>
 
-<div id="setupOverlay">
-  <div class="setup-card">
-    <h1>Ciro Takip'i Bağlayın</h1>
-    <p>Bu uygulama verilerinizi saklamak için ücretsiz bir Firebase (Google) veritabanı kullanır. Sadece ilk seferde, 5 dakikalık bir kurulum yapmanız gerekiyor:</p>
-    <ol class="setup-steps">
-      <li><a href="https://console.firebase.google.com/" target="_blank" rel="noopener">console.firebase.google.com</a> adresine gidin, Google hesabınızla giriş yapın ve "Add project / Proje ekle" ile yeni bir proje oluşturun.</li>
-      <li>Sol menüden <b>Databases &amp; Storage → Firestore</b> bölümüne girin, <b>Create database</b>'e tıklayın, bir konum seçin ve güvenlik kuralı olarak <b>test mode</b> seçip oluşturun.</li>
-      <li>Proje ana sayfasında <b>&lt;/&gt;</b> (Web) simgesine tıklayarak bir web uygulaması kaydedin. Karşınıza çıkan <span class="mono">firebaseConfig = {'{'} ... {'}'}</span> kod bloğunun tamamını kopyalayın.</li>
-      <li>Kopyaladığınızı aşağıya yapıştırın ve "Bağlan"a basın.</li>
-    </ol>
-    <textarea id="configInput" placeholder='const firebaseConfig = {
-  apiKey: "...",
-  authDomain: "...",
-  projectId: "...",
-  ...
-};'></textarea>
-    <div class="setup-err" id="setupErr">Yapıştırılan metinde geçerli bir yapılandırma bulunamadı.</div>
-    <div class="actions-row">
-      <button class="btn btn-primary btn-block" id="connectBtn">Bağlan</button>
-    </div>
-  </div>
-</div>
-
 <div id="mainApp" style="display:none;">
   <header class="top">
     <div class="shopname-wrap">
       <input id="shopName" value="Çiğköfteciniz" />
-      <button class="gear-btn" id="gearBtn" title="Bağlantı ayarları">⚙</button>
     </div>
     <div class="tagline">Sipariş bazlı ciro takibi</div>
   </header>
@@ -380,7 +356,14 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-const CONFIG_KEY = 'cigkofte_firebase_config';
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCSeyDDtw6aw0rOkgmOnn9f9h25meiyfFw",
+  authDomain: "cigkofte-ciro.firebaseapp.com",
+  projectId: "cigkofte-ciro",
+  storageBucket: "cigkofte-ciro.firebasestorage.app",
+  messagingSenderId: "616246809078",
+  appId: "1:616246809078:web:14d187fd991d391d68b7d7"
+};
 const CHART_COLORS = ['#C1442D','#5B7A4F','#E0A23B','#3E6E8E','#8E4585','#B4763E','#4C4C9D'];
 
 const DEFAULT_PRODUCTS = [
@@ -442,35 +425,6 @@ function escapeHtml(s){
 }
 function activeProducts(){ return state.products.filter(p=>p.active!==false); }
 
-// ---------- Firebase config setup ----------
-function getSavedConfig(){ try{ const raw = localStorage.getItem(CONFIG_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; } }
-function saveConfigLocal(cfg){ localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); }
-function parseFirebaseConfig(text){
-  const start = text.indexOf('{'); const end = text.lastIndexOf('}');
-  if(start===-1 || end===-1 || end<start) throw new Error('not found');
-  const objStr = text.slice(start, end+1);
-  const obj = Function('"use strict"; return (' + objStr + ');')();
-  if(!obj || !obj.apiKey || !obj.projectId) throw new Error('missing fields');
-  return obj;
-}
-document.getElementById('connectBtn').addEventListener('click', async ()=>{
-  const raw = document.getElementById('configInput').value;
-  const errBox = document.getElementById('setupErr');
-  try{
-    const cfg = parseFirebaseConfig(raw);
-    saveConfigLocal(cfg);
-    errBox.classList.remove('show');
-    document.getElementById('setupOverlay').style.display='none';
-    document.getElementById('loadingWrap').style.display='block';
-    await boot(cfg);
-  }catch(e){ errBox.classList.add('show'); }
-});
-document.getElementById('gearBtn').addEventListener('click', ()=>{
-  if(confirm('Firebase bağlantısını sıfırlamak istediğinize emin misiniz? (Veriler silinmez, sadece bu cihazdaki bağlantı ayarı silinir)')){
-    localStorage.removeItem(CONFIG_KEY); location.reload();
-  }
-});
-
 // ---------- Firestore ----------
 async function boot(cfg){
   try{
@@ -483,11 +437,8 @@ async function boot(cfg){
     showApp();
   }catch(e){
     console.error(e);
-    document.getElementById('loadingWrap').style.display='none';
-    document.getElementById('setupOverlay').style.display='flex';
-    const errBox = document.getElementById('setupErr');
-    errBox.textContent = 'Bağlantı kurulamadı. Firestore\'u etkinleştirdiğinizden ve config bilgisinin doğru olduğundan emin olun.';
-    errBox.classList.add('show');
+    document.getElementById('loadingWrap').innerHTML = 'Bağlantı kurulamadı. Lütfen internet bağlantınızı kontrol edip sayfayı yenileyin.';
+    document.getElementById('loadingWrap').style.display='block';
   }
 }
 function listenRemote(){
@@ -930,12 +881,8 @@ document.getElementById('shopName').addEventListener('change', (e)=>{
 
 // ---------- Init ----------
 (function init(){
-  const saved = getSavedConfig();
-  if(saved){
-    document.getElementById('setupOverlay').style.display='none';
-    document.getElementById('loadingWrap').style.display='block';
-    boot(saved);
-  }
+  document.getElementById('loadingWrap').style.display='block';
+  boot(FIREBASE_CONFIG);
 })();
 </script>
 </body>
