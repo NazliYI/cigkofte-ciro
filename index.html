@@ -8,20 +8,20 @@
 <meta name="theme-color" content="#C1442D">
 <title>Ciro Takip</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root{
-  --bg: #FBF6EE;
+  --bg: #FCF4F4;
   --surface: #FFFFFF;
-  --surface-alt: #F4EADA;
-  --ink: #2A211C;
-  --ink-soft: #7A6C5D;
-  --line: #E6D9C3;
-  --red: #C1442D;
-  --red-dark: #9C3521;
-  --green: #5B7A4F;
+  --surface-alt: #FBE7E7;
+  --ink: #1C1C1C;
+  --ink-soft: #726B6B;
+  --line: #F2D2D2;
+  --red: #D6001C;
+  --red-dark: #A3000F;
+  --green: #2E7D4F;
   --yellow: #E0A23B;
-  --blue: #3E6E8E;
+  --blue: #2C6E9E;
   --radius: 18px;
   --radius-sm: 10px;
 }
@@ -35,7 +35,7 @@ body{
   min-height:100vh;
   padding-bottom: 40px;
 }
-h1,h2,h3{ font-family:'Fraunces', serif; font-weight:600; margin:0; }
+h1,h2,h3{ font-family:'Anton', sans-serif; font-weight:400; margin:0; letter-spacing:.02em; }
 button{ font-family:inherit; cursor:pointer; }
 input, select, textarea{ font-family:inherit; }
 .mono{ font-family:'IBM Plex Mono', monospace; }
@@ -73,8 +73,9 @@ header.top{
 }
 .shopname-wrap{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 #shopName{
-  border:none; background:transparent; font-family:'Fraunces',serif; font-weight:700;
-  font-size: 26px; color: var(--red-dark); padding:2px 4px; border-radius:8px; max-width: 55vw;
+  border:none; background:transparent; font-family:'Anton',sans-serif; font-weight:400;
+  font-size: 26px; color: var(--red); padding:2px 4px; border-radius:8px; max-width: 55vw;
+  text-transform: uppercase; letter-spacing: .02em;
 }
 #shopName:hover, #shopName:focus{ background: var(--surface-alt); }
 .gear-btn{ border:none; background:var(--surface-alt); width:32px; height:32px; border-radius:50%; font-size:14px; color:var(--ink-soft); }
@@ -108,7 +109,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 
 .chip-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
 .chip{ background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:8px 12px; font-size:11.5px; font-weight:600; color:var(--ink-soft); letter-spacing:.03em; }
-.chip b{ display:block; font-family:'Fraunces',serif; font-size:16px; font-weight:700; color:var(--red-dark); letter-spacing:0; margin-top:2px; }
+.chip b{ display:block; font-family:'Anton',sans-serif; font-size:16px; font-weight:700; color:var(--red-dark); letter-spacing:0; margin-top:2px; }
 
 .seg{ display:flex; gap:6px; background: var(--surface-alt); padding:4px; border-radius:12px; }
 .seg button{ flex:1; border:none; background:transparent; padding:9px; border-radius:9px; font-weight:600; font-size:13.5px; color: var(--ink-soft); }
@@ -129,7 +130,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 
 .big-total{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:14px; border-top: 2px solid var(--ink); }
 .big-total .lbl{ font-size:13px; color:var(--ink-soft); font-weight:600; }
-.total-input{ width:130px; text-align:right; font-family:'Fraunces',serif; font-size:22px; font-weight:700; color:var(--red-dark); border:1px solid var(--line); border-radius:8px; padding:5px 8px; }
+.total-input{ width:130px; text-align:right; font-family:'Anton',sans-serif; font-size:22px; font-weight:700; color:var(--red-dark); border:1px solid var(--line); border-radius:8px; padding:5px 8px; }
 
 .btn{ border:none; border-radius: var(--radius-sm); padding: 12px 20px; font-weight:700; font-size:14.5px; transition: transform .1s ease, opacity .15s ease; }
 .btn:active{ transform: scale(0.97); }
@@ -151,7 +152,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 .receipt::before{ top:-1px; background-position: left top; }
 .receipt::after{ bottom:-1px; background-position: left bottom; transform: scaleY(-1); }
 .receipt-head{ text-align:center; margin-bottom:14px; }
-.receipt-head .shop{ font-family:'Fraunces',serif; font-weight:700; font-size:19px; color:var(--red-dark); }
+.receipt-head .shop{ font-family:'Anton',sans-serif; font-weight:400; font-size:19px; color:var(--red-dark); text-transform:uppercase; letter-spacing:.02em; }
 .receipt-head .date{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
 .receipt-divider{ border:none; border-top: 1px dashed var(--ink-soft); opacity:.5; margin: 12px 0; }
 .r-item{ display:flex; justify-content:space-between; gap:8px; font-size:13.5px; padding:5px 0; }
@@ -170,7 +171,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 @media (min-width:600px){ .stat-cards{ grid-template-columns: repeat(3,1fr);} }
 .stat-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px 16px; }
 .stat-card .lbl{ font-size:12px; color:var(--ink-soft); font-weight:600; }
-.stat-card .val{ font-family:'Fraunces',serif; font-size:22px; font-weight:700; margin-top:3px; }
+.stat-card .val{ font-family:'Anton',sans-serif; font-size:22px; font-weight:700; margin-top:3px; }
 
 .trend{ display:flex; align-items:flex-end; gap:6px; height:90px; margin: 6px 0 22px; padding: 0 2px; }
 .trend .col{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; justify-content:flex-end; height:100%; }
@@ -182,7 +183,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 .day-row:hover{ border-color: var(--red); }
 .day-row .dl{ font-weight:600; font-size:14.5px; }
 .day-row .dl .wk{ color:var(--ink-soft); font-weight:400; font-size:12.5px; }
-.day-row .dv{ font-weight:700; color:var(--red-dark); font-family:'Fraunces',serif; font-size:17px; }
+.day-row .dv{ font-weight:700; color:var(--red-dark); font-family:'Anton',sans-serif; font-size:17px; }
 .back-link{ color:var(--red); font-weight:600; font-size:13.5px; margin-bottom:14px; display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
 
 .order-row{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; }
@@ -192,8 +193,9 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 .badge.ayaktan{ background:#E3EEDD; color:var(--green); }
 .badge.nakit{ background:#EFE6F5; color:#6B4894; }
 .badge.kart{ background:#E1EEF3; color:var(--blue); }
+.badge.online{ background:#E7ECF3; color:#3E5C82; }
 .order-row .items{ font-size:12.5px; color:var(--ink-soft); }
-.order-row .amt{ font-weight:700; font-family:'Fraunces',serif; color:var(--red-dark); font-size:15.5px; white-space:nowrap; }
+.order-row .amt{ font-weight:700; font-family:'Anton',sans-serif; color:var(--red-dark); font-size:15.5px; white-space:nowrap; }
 .order-row .actions{ display:flex; gap:4px; flex-shrink:0; }
 .order-row .actions button{ border:none; background:var(--surface-alt); width:26px; height:26px; border-radius:7px; font-size:12px; }
 
@@ -203,7 +205,11 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 .prod-item .del{ background:none; border:none; color:#B23A48; font-size:18px; padding:4px 8px; }
 .new-prod{ display:grid; grid-template-columns: 1.3fr 0.6fr 0.8fr auto; gap:8px; align-items:center; background: var(--surface-alt); border-radius: var(--radius-sm); padding: 12px; }
 .new-prod input{ border:1px solid var(--line); border-radius:8px; padding:8px 9px; font-size:13.5px; width:100%; min-width:0; }
-@media (max-width:640px){ .prod-item, .new-prod{ grid-template-columns: 1fr 1fr; grid-auto-rows:auto; } }
+@media (max-width:640px){
+  .prod-item{ grid-template-columns: 1fr 1fr; grid-auto-rows:auto; }
+  .new-prod{ grid-template-columns: 1fr; grid-auto-rows:auto; }
+  .new-prod #addProdBtn{ width:100%; padding:14px; }
+}
 .section-lbl{ font-size:12.5px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin: 22px 0 10px; }
 .section-lbl:first-child{ margin-top:0; }
 .toggle-row{ display:flex; align-items:center; gap:5px; font-size:12px; color:var(--ink-soft); white-space:nowrap; }
@@ -218,7 +224,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 
 .sticky-total-mobile{ position: sticky; bottom:0; left:0; right:0; background: var(--surface); border-top:1px solid var(--line); padding: 10px 16px; display:none; justify-content:space-between; align-items:center; margin: 0 -16px; z-index:20; }
 @media (max-width:879px){ .sticky-total-mobile.on{ display:flex; } }
-.sticky-total-mobile .v{ font-family:'Fraunces',serif; font-weight:700; font-size:20px; color:var(--red-dark); }
+.sticky-total-mobile .v{ font-family:'Anton',sans-serif; font-weight:400; font-size:20px; color:var(--red-dark); }
 
 .loading-wrap{ text-align:center; padding: 60px 20px; color:var(--ink-soft); }
 </style>
@@ -228,7 +234,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 <div id="mainApp" style="display:none;">
   <header class="top">
     <div class="shopname-wrap">
-      <input id="shopName" value="Çiğköfteciniz" />
+      <input id="shopName" value="Ziyafet Çiğköfte" />
     </div>
     <div class="tagline">Sipariş bazlı ciro takibi</div>
   </header>
@@ -263,10 +269,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
               <button type="button" data-val="trendyol">Trendyol</button>
             </div>
             <div id="paymentSegWrap" style="margin-top:8px;">
-              <div class="seg" id="paymentSeg">
-                <button type="button" data-val="nakit" class="active">Nakit</button>
-                <button type="button" data-val="kart">Kart</button>
-              </div>
+              <div class="seg" id="paymentSeg"></div>
             </div>
             <div id="builderProductRows" style="margin-top:12px;"></div>
             <div class="override-row" id="autoTotalHint">Otomatik: 0,00 ₺</div>
@@ -326,8 +329,6 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
     <!-- PRODUCTS TAB -->
     <section class="panel" id="panel-products">
       <div class="card">
-        <div class="section-lbl">Ürünleriniz</div>
-        <div class="prod-list" id="prodList"></div>
         <div class="section-lbl">Yeni Ürün Ekle</div>
         <div class="new-prod">
           <input id="npName" placeholder="Ürün adı (örn. Trileçe)" />
@@ -338,6 +339,9 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
         <datalist id="unitOptions">
           <option value="adet"></option><option value="kg"></option><option value="litre"></option>
         </datalist>
+
+        <div class="section-lbl">Ürünleriniz</div>
+        <div class="prod-list" id="prodList"></div>
         <div class="sync-note">Pasif yaptığınız ürünler sipariş ekranından kalkar ama geçmiş satış kayıtlarını etkilemez. Veriler Firebase üzerinde saklanıyor; bu linki açan herkes görür ve düzenleyebilir.</div>
 
         <div class="danger-zone">
@@ -388,7 +392,7 @@ const DEFAULT_PRODUCTS = [
 ];
 
 const state = {
-  shopName: 'Çiğköfteciniz',
+  shopName: 'Ziyafet Çiğköfte',
   products: [],
   sales: {}, // { 'YYYY-MM-DD': { orders: [{id,channel,payment,items:[{productId,name,unit,price,qty}],total,ts}] } }
   entryDate: todayStr(),
@@ -446,7 +450,7 @@ function listenRemote(){
   unsubscribeSnap = onSnapshot(docRef, (snap)=>{
     if(!snap.exists()) return;
     const d = snap.data();
-    state.shopName = d.shopName || 'Çiğköfteciniz';
+    state.shopName = d.shopName || 'Ziyafet Çiğköfte';
     state.products = d.products || [];
     state.sales = d.sales || {};
     onRemoteUpdate();
@@ -507,15 +511,15 @@ function draftAutoTotal(){
   });
   return sum;
 }
+const PAYMENT_OPTIONS = {
+  ayaktan: [ {val:'nakit', label:'Nakit'}, {val:'kart', label:'Kart'} ],
+  trendyol: [ {val:'online', label:'Online'}, {val:'nakit', label:'Kapıda Nakit'}, {val:'kart', label:'Kapıda Kart'} ],
+};
 document.querySelectorAll('#channelSeg button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     state.draft.channel = btn.dataset.val;
-    if(state.draft.channel!=='ayaktan'){ state.draft.payment=null; } else if(!state.draft.payment){ state.draft.payment='nakit'; }
     renderOrderBuilder();
   });
-});
-document.querySelectorAll('#paymentSeg button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{ state.draft.payment = btn.dataset.val; renderOrderBuilder(); });
 });
 document.getElementById('orderTotalInput').addEventListener('input', (e)=>{
   state.draft.overrideTotal = e.target.value===''? null : (parseFloat(e.target.value.replace(',','.'))||0);
@@ -523,8 +527,13 @@ document.getElementById('orderTotalInput').addEventListener('input', (e)=>{
 
 function renderOrderBuilder(){
   document.querySelectorAll('#channelSeg button').forEach(b=> b.classList.toggle('active', b.dataset.val===state.draft.channel));
-  document.getElementById('paymentSegWrap').style.display = state.draft.channel==='ayaktan' ? 'block' : 'none';
-  document.querySelectorAll('#paymentSeg button').forEach(b=> b.classList.toggle('active', b.dataset.val===state.draft.payment));
+  const opts = PAYMENT_OPTIONS[state.draft.channel] || PAYMENT_OPTIONS.ayaktan;
+  if(!opts.find(o=>o.val===state.draft.payment)){ state.draft.payment = opts[0].val; }
+  const paySeg = document.getElementById('paymentSeg');
+  paySeg.innerHTML = opts.map(o=> `<button type="button" data-val="${o.val}" class="${o.val===state.draft.payment?'active':''}">${o.label}</button>`).join('');
+  paySeg.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ state.draft.payment = btn.dataset.val; renderOrderBuilder(); });
+  });
 
   const wrap = document.getElementById('builderProductRows');
   const actives = activeProducts();
@@ -586,7 +595,7 @@ function updateBuilderTotal(){
 document.getElementById('saveOrderBtn').addEventListener('click', async ()=>{
   const entries = Object.keys(state.draft.items).filter(id=> state.draft.items[id]>0);
   if(entries.length===0){ toast('En az bir ürün seçin'); return; }
-  if(state.draft.channel==='ayaktan' && !state.draft.payment){ toast('Ödeme yöntemini seçin'); return; }
+  if(!state.draft.payment){ toast('Ödeme yöntemini seçin'); return; }
   const prodMap = Object.fromEntries(state.products.map(p=>[p.id,p]));
   const items = entries.map(id=>{
     const qty = state.draft.items[id];
@@ -600,9 +609,9 @@ document.getElementById('saveOrderBtn').addEventListener('click', async ()=>{
   const dayObj = state.sales[state.entryDate];
   if(state.draft.editingOrderId){
     const idx = dayObj.orders.findIndex(o=>o.id===state.draft.editingOrderId);
-    if(idx>-1) dayObj.orders[idx] = { id: state.draft.editingOrderId, channel: state.draft.channel, payment: state.draft.channel==='ayaktan'?state.draft.payment:null, items, total, ts: Date.now() };
+    if(idx>-1) dayObj.orders[idx] = { id: state.draft.editingOrderId, channel: state.draft.channel, payment: state.draft.payment, items, total, ts: Date.now() };
   } else {
-    dayObj.orders.push({ id: uid(), channel: state.draft.channel, payment: state.draft.channel==='ayaktan'?state.draft.payment:null, items, total, ts: Date.now() });
+    dayObj.orders.push({ id: uid(), channel: state.draft.channel, payment: state.draft.payment, items, total, ts: Date.now() });
   }
   await saveSales();
   toast(state.draft.editingOrderId? 'Sipariş güncellendi ✓' : 'Sipariş eklendi ✓');
@@ -612,6 +621,11 @@ document.getElementById('saveOrderBtn').addEventListener('click', async ()=>{
 document.getElementById('cancelEditBtn').addEventListener('click', ()=>{ resetDraft(true); renderOrderBuilder(); });
 
 // ---------- Orders list ----------
+function paymentLabel(o){
+  if(o.payment==='online') return 'Online';
+  if(o.channel==='trendyol') return o.payment==='nakit' ? 'Kapıda Nakit' : 'Kapıda Kart';
+  return o.payment==='nakit' ? 'Nakit' : 'Kart';
+}
 function renderOrdersListInto(dateStr, elId, readOnly){
   const wrap = document.getElementById(elId);
   const dayObj = state.sales[dateStr];
@@ -623,7 +637,7 @@ function renderOrdersListInto(dateStr, elId, readOnly){
       <div>
         <div class="meta">
           <span class="badge ${o.channel}">${o.channel==='trendyol'?'Trendyol':'Ayaktan'}</span>
-          ${o.payment? `<span class="badge ${o.payment}">${o.payment==='nakit'?'Nakit':'Kart'}</span>`:''}
+          ${o.payment? `<span class="badge ${o.payment}">${paymentLabel(o)}</span>`:''}
         </div>
         <div class="items">${itemsTxt}</div>
       </div>
@@ -671,7 +685,7 @@ function computeDayAggregates(dateStr){
   orders.forEach(o=>{
     total += o.total;
     if(o.channel==='trendyol') trendyol += o.total; else ayaktan += o.total;
-    if(o.channel==='ayaktan'){ if(o.payment==='nakit') nakit+=o.total; else if(o.payment==='kart') kart+=o.total; }
+    if(o.payment==='nakit') nakit+=o.total; else if(o.payment==='kart') kart+=o.total;
     const autoSum = o.items.reduce((s,it)=> s+it.qty*it.price, 0);
     const factor = autoSum>0 ? (o.total/autoSum) : 1;
     o.items.forEach(it=>{
@@ -873,7 +887,7 @@ document.getElementById('resetHistoryBtn').addEventListener('click', async ()=>{
 });
 
 document.getElementById('shopName').addEventListener('change', (e)=>{
-  state.shopName = e.target.value.trim() || 'Çiğköfteciniz';
+  state.shopName = e.target.value.trim() || 'Ziyafet Çiğköfte';
   e.target.value = state.shopName;
   saveShopName();
   renderDaySummary();
