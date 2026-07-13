@@ -259,12 +259,32 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 </head>
 <body>
 
+<div id="loginOverlay" style="display:none; min-height:100vh; align-items:center; justify-content:center; padding:24px;">
+  <div class="setup-card" style="max-width:380px;">
+    <h1 style="font-size:22px;">Giriş Yap</h1>
+    <p>Bu uygulamaya sadece yetkili kullanıcılar girebilir.</p>
+    <div style="margin-top:16px;">
+      <label style="font-size:12.5px; font-weight:600; color:var(--ink-soft);">E-posta</label>
+      <input type="email" id="loginEmail" autocomplete="username" style="width:100%; margin-top:4px; margin-bottom:12px; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:14px;" />
+      <label style="font-size:12.5px; font-weight:600; color:var(--ink-soft);">Şifre</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" style="width:100%; margin-top:4px; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:14px;" />
+    </div>
+    <div class="setup-err" id="loginErr">E-posta veya şifre hatalı.</div>
+    <div class="actions-row">
+      <button class="btn btn-primary btn-block" id="loginBtn">Giriş Yap</button>
+    </div>
+  </div>
+</div>
+
 <div id="mainApp" style="display:none;">
   <header class="top">
     <div class="shopname-wrap">
       <input id="shopName" value="Ziyafet Çiğköfte" />
     </div>
-    <div class="tagline">Sipariş bazlı ciro takibi</div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="tagline">Sipariş bazlı ciro takibi</div>
+      <button id="logoutBtn" style="border:none;background:none;color:var(--ink-soft);font-size:12.5px;font-weight:600;text-decoration:underline;cursor:pointer;padding:0;">Çıkış Yap</button>
+    </div>
   </header>
 
   <div class="shell" id="app">
@@ -311,6 +331,12 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
               </div>
             </div>
             <div class="override-row" id="autoTotalHint">Otomatik: 0,00 ₺</div>
+            <div class="tip-row" id="discountRow">
+              <label>İndirim <span style="font-weight:400; color:var(--ink-soft);">(opsiyonel, ₺)</span></label>
+              <div style="margin-top:6px;">
+                <input type="number" step="0.01" min="0" id="discountAmountInput" placeholder="0" class="tip-amount-input" style="width:120px;" />
+              </div>
+            </div>
             <div class="big-total" id="normalTotalWrap">
               <span class="lbl">SİPARİŞ TOPLAMI</span>
               <input type="number" step="0.01" id="orderTotalInput" class="total-input" />
@@ -408,6 +434,7 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getFirestore, doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCSeyDDtw6aw0rOkgmOnn9f9h25meiyfFw",
@@ -517,7 +544,7 @@ const state = {
   summaries: {}, // { 'YYYY-MM-DD': { total, trendyol, ayaktan, nakit, kart, orderCount } } — Geçmiş sekmesi için hafif özet
   entryDate: todayStr(),
   viewingDate: null,
-  draft: { channel:'ayaktan', activeTag:'nakit', itemsByTag:{nakit:{},kart:{},online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{}, tip:{amount:0, tag:'nakit'} },
+  draft: { channel:'ayaktan', activeTag:'nakit', itemsByTag:{nakit:{},kart:{},online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{}, tip:{amount:0, tag:'nakit'}, discount:0 },
 };
 
 let db, docRef;
@@ -560,11 +587,33 @@ let unsubscribeSalesDay = null;
 function salesDocRef(dateStr){ return doc(db, 'sales', dateStr); }
 function summaryDocRef(dateStr){ return doc(db, 'summaries', dateStr); }
 
-async function boot(cfg){
+let authInstance;
+async function initFirebase(cfg){
   try{
     const app = initializeApp(cfg);
     db = getFirestore(app);
+    authInstance = getAuth(app);
     docRef = doc(db, 'cigkofte-shop', 'main');
+    try{ await setPersistence(authInstance, browserLocalPersistence); }catch(e){}
+    onAuthStateChanged(authInstance, (user)=>{
+      if(user){
+        document.getElementById('loginOverlay').style.display='none';
+        document.getElementById('loadingWrap').style.display='block';
+        loadDataAndShowApp();
+      } else {
+        document.getElementById('loadingWrap').style.display='none';
+        document.getElementById('mainApp').style.display='none';
+        document.getElementById('loginOverlay').style.display='flex';
+      }
+    });
+  }catch(e){
+    console.error(e);
+    document.getElementById('loadingWrap').innerHTML = 'Bağlantı kurulamadı. Lütfen internet bağlantınızı kontrol edip sayfayı yenileyin.';
+    document.getElementById('loadingWrap').style.display='block';
+  }
+}
+async function loadDataAndShowApp(){
+  try{
     const snap = await getDoc(docRef);
     if(!snap.exists()){
       await setDoc(docRef, { shopName: state.shopName, products: DEFAULT_PRODUCTS, productSeedVersion: 0 });
@@ -586,6 +635,22 @@ async function boot(cfg){
     document.getElementById('loadingWrap').style.display='block';
   }
 }
+document.getElementById('loginBtn').addEventListener('click', async ()=>{
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errBox = document.getElementById('loginErr');
+  errBox.classList.remove('show');
+  if(!email || !password){ errBox.textContent='E-posta ve şifre girin.'; errBox.classList.add('show'); return; }
+  try{
+    await signInWithEmailAndPassword(authInstance, email, password);
+  }catch(e){
+    errBox.textContent = 'E-posta veya şifre hatalı.';
+    errBox.classList.add('show');
+  }
+});
+document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+  if(confirm('Çıkış yapmak istediğinize emin misiniz?')){ await signOut(authInstance); }
+});
 // Eski tek-doküman yapısında (shopName/products/sales hepsi bir arada) test sırasında
 // birikmiş veri varsa, otomatik olarak yeni gün-bazlı yapıya taşır.
 async function migrateOldSalesIfNeeded(metaData){
@@ -697,7 +762,7 @@ document.getElementById('todayBadge').style.display = 'inline-block';
 // ---------- Order draft / builder ----------
 function resetDraft(keepChannelTag){
   const keep = keepChannelTag ? {channel: state.draft.channel, activeTag: state.draft.activeTag} : {channel:'ayaktan', activeTag:'nakit'};
-  state.draft = { channel: keep.channel, activeTag: keep.activeTag, itemsByTag: {nakit:{}, kart:{}, online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{}, tip:{amount:0, tag:keep.activeTag} };
+  state.draft = { channel: keep.channel, activeTag: keep.activeTag, itemsByTag: {nakit:{}, kart:{}, online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{}, tip:{amount:0, tag:keep.activeTag}, discount:0 };
 }
 function effectivePrice(p){
   if(!p) return 0;
@@ -731,6 +796,11 @@ document.querySelectorAll('#channelSeg button').forEach(btn=>{
 document.getElementById('orderTotalInput').addEventListener('input', (e)=>{
   state.draft.overrideTotal = e.target.value===''? null : (parseFloat(e.target.value.replace(',','.'))||0);
 });
+document.getElementById('discountAmountInput').addEventListener('input', (e)=>{
+  state.draft.discount = parseFloat((e.target.value||'0').replace(',','.'))||0;
+  if(state.draft.discount<=0){ state.draft.overrideTotal = null; }
+  updateBuilderTotal();
+});
 document.getElementById('tipAmountInput').addEventListener('input', (e)=>{
   state.draft.tip.amount = parseFloat((e.target.value||'0').replace(',','.'))||0;
   updateBuilderTotal();
@@ -754,6 +824,7 @@ function renderOrderBuilder(){
     btn.addEventListener('click', ()=>{ state.draft.tip.tag = btn.dataset.val; renderOrderBuilder(); });
   });
   document.getElementById('tipAmountInput').value = state.draft.tip.amount || '';
+  document.getElementById('discountAmountInput').value = state.draft.discount || '';
 
   const wrap = document.getElementById('builderProductRows');
   const actives = activeProducts();
@@ -822,7 +893,13 @@ function updateBuilderTotal(){
   const auto = draftAutoTotal();
   document.getElementById('autoTotalHint').textContent = 'Otomatik: ' + formatTL(auto);
   const overrideInp = document.getElementById('orderTotalInput');
-  if(state.draft.overrideTotal===null){ overrideInp.value = auto ? auto.toFixed(2) : ''; }
+  if(state.draft.discount>0){
+    const newTotal = Math.max(0, auto - state.draft.discount);
+    state.draft.overrideTotal = newTotal;
+    overrideInp.value = newTotal.toFixed(2);
+  } else if(state.draft.overrideTotal===null){
+    overrideInp.value = auto ? auto.toFixed(2) : '';
+  }
 }
 function renderDraftLines(){
   const box = document.getElementById('draftLinesBox');
@@ -966,7 +1043,7 @@ function editOrder(orderId){
     if(!prodMap[it.productId]) ghosts[it.productId] = {name:it.name, unit:it.unit, price:it.price};
   });
   const firstTag = realItems[0] ? (realItems[0].payment || 'nakit') : 'nakit';
-  state.draft = { channel:o.channel, activeTag:firstTag, itemsByTag, overrideTotal:o.total, editingOrderId:o.id, ghostItems:ghosts, tip };
+  state.draft = { channel:o.channel, activeTag:firstTag, itemsByTag, overrideTotal:o.total, editingOrderId:o.id, ghostItems:ghosts, tip, discount:0 };
   renderOrderBuilder();
   document.getElementById('orderTotalInput').value = o.total.toFixed(2);
   toast('Sipariş düzenleniyor, değişiklik yapıp güncelleyin');
@@ -1269,7 +1346,7 @@ document.getElementById('shopName').addEventListener('change', (e)=>{
 // ---------- Init ----------
 (function init(){
   document.getElementById('loadingWrap').style.display='block';
-  boot(FIREBASE_CONFIG);
+  initFirebase(FIREBASE_CONFIG);
 })();
 </script>
 </body>
