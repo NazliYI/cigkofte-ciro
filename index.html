@@ -128,6 +128,13 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
 .draft-line .dl-del{ border:none; background:var(--surface-alt); width:22px; height:22px; border-radius:6px; font-size:11px; color:#B23A48; }
 
 .tip-row{ margin-top:14px; padding:12px 14px; background:var(--surface-alt); border-radius:var(--radius-sm); border:1px dashed var(--line); }
+
+.product-search-input{
+  width:100%; border:1px solid var(--line); border-radius: var(--radius-sm); padding:10px 14px;
+  font-size:14px; background: var(--surface-alt);
+}
+.product-search-input:focus{ background: var(--surface); outline: 2px solid var(--red); outline-offset: -1px; }
+.product-search-input::-webkit-search-cancel-button{ cursor:pointer; }
 .tip-row label{ font-size:12.5px; font-weight:700; color:var(--ink); }
 .tip-amount-input{ width:100px; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:15px; font-weight:600; flex-shrink:0; }
 
@@ -320,7 +327,8 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
               <div style="font-size:11.5px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.03em; margin-bottom:5px;">Şimdi eklenecek ürünler hangi ödemeyle?</div>
               <div class="seg" id="paymentSeg"></div>
             </div>
-            <div id="builderProductRows" style="margin-top:12px;"></div>
+            <input type="search" id="productSearchInput" placeholder="Ürün ara..." class="product-search-input" style="margin-top:12px;" />
+            <div id="builderProductRows" style="margin-top:10px;"></div>
             <div class="draft-summary" id="draftSummary"></div>
             <div id="draftLinesBox" style="margin-top:12px;"></div>
             <div class="tip-row" id="tipRow">
@@ -345,6 +353,10 @@ nav.tabs button.active{ background: var(--red); color:#fff; }
               <button class="btn btn-primary" id="saveOrderBtn">Siparişi Kaydet</button>
               <button class="btn btn-ghost" id="cancelEditBtn" style="display:none;">Vazgeç</button>
             </div>
+          </div>
+          <div class="card" id="lastOrderCard" style="margin-top:14px; display:none; border:2px solid var(--red);">
+            <h3 style="font-size:15px; margin-bottom:10px; color:var(--red-dark);">✓ Son Eklenen Sipariş</h3>
+            <div id="lastOrderBox"></div>
           </div>
           <div class="card" style="margin-top:14px;">
             <h3 style="font-size:15px; margin-bottom:10px;">Bugünün Siparişleri</h3>
@@ -761,6 +773,8 @@ document.getElementById('todayBadge').style.display = 'inline-block';
 function resetDraft(keepChannelTag){
   const keep = keepChannelTag ? {channel: state.draft.channel, activeTag: state.draft.activeTag} : {channel:'ayaktan', activeTag:'nakit'};
   state.draft = { channel: keep.channel, activeTag: keep.activeTag, itemsByTag: {nakit:{}, kart:{}, online:{}}, overrideItemTotals: {nakit:{}, kart:{}, online:{}}, overrideTotal:null, editingOrderId:null, ghostItems:{}, tip:{amount:0, tag:keep.activeTag}, discount:0 };
+  const searchInp = document.getElementById('productSearchInput');
+  if(searchInp) searchInp.value = '';
 }
 function effectivePrice(p){
   if(!p) return 0;
@@ -801,6 +815,7 @@ document.querySelectorAll('#channelSeg button').forEach(btn=>{
 document.getElementById('orderTotalInput').addEventListener('input', (e)=>{
   state.draft.overrideTotal = e.target.value===''? null : (parseFloat(e.target.value.replace(',','.'))||0);
 });
+document.getElementById('productSearchInput').addEventListener('input', renderOrderBuilder);
 document.getElementById('discountAmountInput').addEventListener('input', (e)=>{
   state.draft.discount = parseFloat((e.target.value||'0').replace(',','.'))||0;
   if(state.draft.discount<=0){ state.draft.overrideTotal = null; }
@@ -837,11 +852,18 @@ function renderOrderBuilder(){
   wrap.innerHTML = '';
   const activeBucket = state.draft.itemsByTag[state.draft.activeTag] || {};
   const overrideBucket = state.draft.overrideItemTotals[state.draft.activeTag] || {};
-  
+
+  const searchTerm = (document.getElementById('productSearchInput').value || '').trim().toLocaleLowerCase('tr-TR');
+  let rowsSource = [...actives, ...ghostIds.map(id=>({id, ...state.draft.ghostItems[id], ghost:true}))];
+  const noSearchMatch = searchTerm && rowsSource.filter(p=> p.name.toLocaleLowerCase('tr-TR').includes(searchTerm)).length===0;
+  if(searchTerm){ rowsSource = rowsSource.filter(p=> p.name.toLocaleLowerCase('tr-TR').includes(searchTerm)); }
+
   if(actives.length===0 && ghostIds.length===0){
     wrap.innerHTML = '<div class="empty-note">Aktif ürün yok. <a data-goto="products">Ürünler</a> sekmesinden ekleyin.</div>';
+  } else if(noSearchMatch){
+    wrap.innerHTML = '<div class="empty-note">"'+escapeHtml(searchTerm)+'" ile eşleşen ürün yok.</div>';
   } else {
-    const rows = [...actives, ...ghostIds.map(id=>({id, ...state.draft.ghostItems[id], ghost:true}))];
+    const rows = rowsSource;
     rows.forEach(p=>{
       const val = activeBucket[p.id] || '';
       const customTutar = overrideBucket[p.id] !== undefined ? overrideBucket[p.id] : '';
@@ -1069,7 +1091,33 @@ function renderOrdersListInto(dateStr, elId, readOnly){
     wrap.querySelectorAll('.del-order').forEach(btn=> btn.addEventListener('click', (e)=> deleteOrder(e.target.closest('.order-row').dataset.id)));
   }
 }
-function renderOrdersList(){ renderOrdersListInto(state.entryDate, 'ordersListBox', false); }
+function renderOrdersList(){ renderOrdersListInto(state.entryDate, 'ordersListBox', false); renderLastOrderCard(); }
+function renderLastOrderCard(){
+  const card = document.getElementById('lastOrderCard');
+  const box = document.getElementById('lastOrderBox');
+  const dayObj = state.sales[state.entryDate];
+  const orders = dayObj ? dayObj.orders.slice().sort((a,b)=>b.ts-a.ts) : [];
+  if(orders.length===0){ card.style.display='none'; return; }
+  card.style.display='block';
+  const o = orders[0];
+  const itemsTxt = o.items.map(it=> it.isTip ? `Bahşiş ${formatTL(it.price)}` : `${formatQty(it.qty)}× ${escapeHtml(it.name)}`).join(', ');
+  const tagTotals = orderTagTotals(o);
+  const badges = Object.keys(tagTotals).map(tag=> `<span class="badge ${tag}">${paymentTagLabel(tag,o.channel)} ${formatTL(tagTotals[tag])}</span>`).join('');
+  const timeStr = new Date(o.ts).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+  box.innerHTML = `
+    <div class="meta">
+      <span class="badge ${o.channel}">${o.channel==='trendyol'?'Trendyol':'Ayaktan'}</span>
+      ${badges}
+      <span style="font-size:11px; color:var(--ink-soft); margin-left:auto;">${timeStr}</span>
+    </div>
+    <div class="items" style="margin-top:8px; font-size:14.5px;">${itemsTxt}</div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+      <span class="amt" style="font-size:24px;">${formatTL(o.total)}</span>
+      <button type="button" class="btn btn-ghost" id="lastOrderEditBtn" style="padding:8px 16px; font-size:13px;">✎ Düzenle</button>
+    </div>
+  `;
+  document.getElementById('lastOrderEditBtn').addEventListener('click', ()=> editOrder(o.id));
+}
 
 function editOrder(orderId){
   const dayObj = state.sales[state.entryDate];
